@@ -1,0 +1,2129 @@
+---
+title: "RIPARU - Caractérisation des Macrodéchets"
+author: Aubin Woehrel
+date: 2024-10-04
+lang: fr
+execute:
+  echo: false
+format: 
+  html:
+    toc: true
+    toc-location: left
+    css: styles.css       # Link to the custom CSS file
+    page-layout: full
+    self-contained: true
+    embed-resources: true
+project:
+  root-dir: ../
+author-title: "AUTEUR"  # Set to the specific title you prefer
+---
+
+<script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js""></script>
+
+<script type="text/javascript">
+$(document).ready(function() {
+$('body').prepend('<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>');
+// onClick function for all plots (img's)
+$('img:not(.zoomImg)').click(function() {
+$('.zoomImg').attr('src', $(this).attr('src')).css({width: '100%'});
+$('.zoomDiv').css({opacity: '1', width: 'auto', border: '1px solid white', borderRadius: '5px', position: 'fixed', top: '50%', left: '50%', marginRight: '-50%', transform: 'translate(-50%, -50%)', boxShadow: '0px 0px 50px #888888', zIndex: '50', overflow: 'auto', maxHeight: '100%'});
+});
+// onClick function for zoomImg
+$('img.zoomImg').click(function() {
+$('.zoomDiv').css({opacity: '0', width: '0%'}); 
+});
+});
+</script>
+
+::::: columns
+::: {.column width="23%"}
+![](mare_vivu.jpg){width="100%"}
+:::
+
+::: {.column width="23%"}
+![](stareso.png){width="100%"}
+:::
+:::::
+
+```{r}
+#| warning: false
+#| message: false
+
+rm(list = ls())
+
+# Manipulations de données
+library("dplyr")
+library("tidyr")
+library("tibble")
+library("stringr")
+library("lubridate")
+
+# Graphiques
+library("ggplot2")
+library("ggpubr")
+library("echarts4r")
+library("factoextra")
+
+# Utilitaire
+library("here")
+library("kableExtra")
+
+# Carto
+library("leaflet")
+library("sf")
+
+# Sourcage des scripts personnalisés
+source(here("R", "paths.R"))
+source(here("R", "fct_load_microplastics.R"))
+source(here("R", "fct_pca_riparu.R"))
+
+# Import des données
+macrodechets_general <- readRDS(here(paths$macrodechets_general_processed))
+macrodechets_counts <- readRDS(here(paths$macrodechets_counts_processed))
+macrodechets_essential <- readRDS(here(paths$macrodechets_essential_processed))
+riparu_microplastics <- readRDS(here(paths$microplatics_processed))
+typologie_sites <- readRDS(here(paths$typology_sites_processed))
+```
+
+# Contexte
+
+Le projet **RIPARU** (Recherche Intégrée pour la Prévention en Amont des Résidus plastiqUes) a pour objectif de caractériser les déchets échoués sur les plages de Corse au sein du Parc Naturel Marin du Cap Corse et de l'Agriate (PNMCCA) afin de notamment caractériser les plages par leurs compositions en macrodéchets et en microplastiques.
+
+Ce rapport rend compte de la **caractérisation des plages par leurs composition en macrodéchets**. A la suite de la description du contexte du projet et du protocole d'échantillonnage, les analyses sont menées pour chaque méthode de classification des macrodéchets. Cette séparation permet d'extraire les informations spécifiques à chaque type de classification et de conclure sur de potentielles **plages-types**.
+
+## Macrodéchets
+
+Les prélèvements de macrodéchets sont effectués aux **4 saisons** de l'année et sur **7 sites** depuis 2022. Les campagnes permettent de collecter et d'identifier le plus précisément possible les déchets. Les plages concernées par les collectes de macrodéchets sont :
+
+-   Macinaghju
+-   Barcaghju
+-   Alisu
+-   Ferringule
+-   La Roya
+-   Saleccia
+-   Petracurbara
+
+Voici leur emplacement géographique dans la délimitation du parc :
+
+```{r}
+
+# Aggregate data to get the first and last sampling dates per site and count total sampling events
+macrodechets_aggregated <- macrodechets_essential %>%
+  select(site, date, longitude, latitude, nom_zone) %>%
+  distinct() %>%
+  group_by(site) %>%
+  summarize(
+    first_sampling = min(date, na.rm = TRUE),
+    last_sampling = max(date, na.rm = TRUE),
+    total_sampling = n(),
+    longitude = first(longitude),
+    latitude = first(latitude),
+    nom_zone = first(nom_zone),
+    .groups = "drop"
+  ) %>%
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+
+# Create the leaflet map with custom background tiles
+leaflet(macrodechets_aggregated) %>%
+  addProviderTiles("CartoDB.Positron") %>%  # Better tile background
+  addCircleMarkers(
+    color = "black",
+    radius = 5, 
+    fillOpacity = 0.8,
+    label = ~site,  # Add site label
+    labelOptions = labelOptions(noHide = TRUE),  # Keep label always visible
+    popup = ~paste("<strong>Site:</strong>", site, "<br/>",
+                   "<strong>Première collecte:</strong>", first_sampling, "<br/>",
+                   "<strong>Dernière collecte:</strong>", last_sampling, "<br/>",
+                   "<strong>Nombre total de collectes:</strong>", total_sampling)
+  )
+```
+
+\
+
+Les données de dénombrement par type de déchets sont ensuite saisies sur la plateforme **MerTerre** qui sert non seulement de base de données centralisée mais permet aussi d'exporter un jeu de données dans lequel les déchets sont classifiés en catégories spécifiques. Les grandes méthodes de classifications sont :
+
+-   **Filières REP** : Filières à Responsabilité Elargie des Producteurs. Ces filières permettent de mettre en oeuvre le principe de pollueur-payeur. Identifier les filières REP permet de cibler les producteurs responsables de la mise sur le marché des produits à l'origine des déchets.
+
+-   **Secteurs d'activité** : Les secteurs d'activité permettent de cibler les sources potentielles de déchets. Les déchets sont classifiés en fonction de leur origine.
+
+-   **DCSMM** : La DCSMM (Directive Cadre Stratégie pour le Milieu Marin) est une directive européenne qui vise à protéger le milieu marin. Les déchets sont classifiés selon les catégories indiquées par la DCSMM.
+
+-   **Groupes Zéro Déchet Sauvage** : La classification établie par le protocole du réseau Zéro Déchet Sauvage permet de regrouper les déchets en fonction de leur nature, de manière assez fine.
+
+-   **Marques** : Les marques des produits permettent par exemple de cibler des origines spécifiques des déchets ou de catégoriser les plages par type de personnes les fréquentant.
+
+Les données ont été traitées au préalable afin d'être vérifiées et utilisables dans les scripts d'analyses associés à ce rapport.
+
+## Microplastiques
+
+De manière similaire aux macrodéchets, les **microplastiques** sont collectés sur 8 plages aux 4 saisons de l'année depuis 2022. Lors du cas de plages aux collectes comportant à la fois les microplastiques et les macrodéchets, les prélèvements sont réalisés à la même journée. Les plages concernées par les collectes de microplastiques sont :
+
+-   Barcaghju
+-   Ferringule
+-   Saleccia
+-   La Roya
+-   Lozari
+-   Macinaghju
+-   L'Ostriconi
+-   Petracurbara
+
+Les plastiques sont distingués en deux classes de taille, distinction qui correspond à la séparation par les tamis aux mailles définies. Les **microplastiques** sont de taille comprise entre 1 et 5 mm et les **mésoplastiques** de taille supérieure à 5 mm. Outre la taille des éléments plastiques récupérés, les types de plastiques sont classifiés dans des catégories distinctes :
+
+```{r}
+riparu_microplastics %>%
+  select(Type, Description) %>%
+  distinct() %>%
+  kable() %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"), 
+    full_width = FALSE)
+```
+
+Les microplastiques ne sont néanmoins **pas analysés dans ce rapport spécifique**.
+
+## Fonctionnement d'une ACP
+
+Ce rapport d'analyse des macrodéchets comporte plusieurs **Analyses en Composantes Principales (ACP)**. Cette méthode statistique permet de représenter des données issues d'un nombre de dimensions complexes dans un nombre de dimensions réduit. Il s'agit principalement d'un outil de **visualisation**, qui permet d'interpréter des regroupements ou des distinctions entre individus dans un espace simplifié caractérisés par leur valeurs dans les dimensions initiales.
+
+De manière plus simple à comprendre :
+
+Nos individus sont ici des **combinaisons site-saison**, qui correspondent à l'unité d'échantillonnage de base de ce projet. En effet, chaque plage a une composition en macrodéchets différente à chaque saison, puisque les campagnes ont lieux 4 fois par an. Un de nos objectifs est ici de trouver des **regroupement de sites ou de saisons** permettant de caractériser des **plages types**. On pourrait très bien imaginer regarder directement les données brutes et essayer de voir quels sites sont les plus similaires ou les plus distincts entre eux selon le nombre de déchets de chaque filière REP, mais cela s'avère compliqué puisque le **nombre** de catégories ainsi que le nombre d'unité d'échantillonnage sont assez **conséquents**.
+
+L'ACP permet de **représenter** ainsi les unités d'échantillonnages définies par une combinaison saison-plage dans un **nombre de dimension réduit** (dans l'idéal 2 ou 3) à partir des données de composition en macrodéchets catégorisés en filières REP.
+
+Un superbe article sur le site-blog Medium illustre très bien le concept de l'ACP ([https://medium.com/\@yashwanths_29644/pca-in-ml-79dd97084290](https://medium.com/@yashwanths_29644/pca-in-ml-79dd97084290)) dont voici les figures qui en proviennent :
+
+![ACP : exemple de données brutes en 3 dimensions](PCA3D.png)
+
+Imaginons que cette image corresponde à une représentation de nos données brutes, où les axes x0, x1 et x2 pourraient par exemple correspondre à 3 filières REP distinctes (dans ce cas de figure on oublie les autres filières). Chaque point représenté dans l'espace est caractérisé par le nombre de déchets dans chacune de ces 3 filières REP et sont distincts spatialement les uns des autres dans cet espace à 3 dimensions. On pourrait très bien interpréter cette figure directement mais ce n'est pas nécessairement le plus facile d'interpréter les données de cette manière. L'ACP permet de projeter les données dans un nombre de dimensions réduit en gardant au maximum la distinction entre les individus. Ici donc, la meilleure représentation du nuage de point semble être une représentation où l'on sélectionne les nouvelles dimensions correspondant aux flèches rouge et bleue, la verte n'apportant pas beaucoup d'informations (ce que l'on appelle variance) supplémentaire. Lorsque l'on projette nos données dans un espace à deux dimensions défini par les axes (= dimensions) rouge et bleu, on obtient ceci :
+
+![ACP : projection des données dans un nombre de dimensions réduit.](PCA2D.png)
+
+Cette représentation est beaucoup plus simple. Elle permet de visualiser la majorité des différences entre les points dans un espace réduit à 2 dimensions. Les groupes similaires (représentés par les couleurs différentes) sont plus facilement distinguables les uns des autres.
+
+Nous appliquons ainsi ce principe pour chaque catégorisation de macrodéchets mais sur des dimensions plus élevées. Dans le cas des filières REP, il y en a par exemple 15 différentes au total. Il serait impossible de représenter les données brutes dans un espace en 15 dimensions, et même si cela était possible, la représentation serait incompréhensible pour un être humain. L'ACP permet donc de projeter le nuage de points site-saison depuis un espace à 15 dimensions vers un espace dont le nombre de dimensions est réduit (2 ou 3) en conservant au maximum les distinctions entre combinaisons site-saison.
+
+A chaque ACP de ce rapport, les sites-saisons sont regroupés par méthode de **partitionnement en k-moyennes**. Cette méthode complémentaire permet tout simplement de trouver des **groupes se distinguant au plus les uns des autres** dans le nombre de dimensions finales sélectionnées. Ces groupes sont à chaque fois représentés par des couleurs différentes ainsi que des ellipses englobant l'emprise de chaque groupe dans l'espace à dimensions réduit. Ainsi, si 3 dimensions sont sélectionnées dans la projection d'une ACP, les groupes sont construit sur la base de leurs coordonnées dans cet espace à 3 dimensions puis présentés avec des projections en 2 dimensions.
+
+Pour voir si les **distinctions site-saison** sont caractéristiques de **sites** particuliers, les sites sont aussi représentés avec des **couleurs distinctes** dans la projection finale de chaque ACP. Il est ainsi possible d'estimer visuellement la cohérence de la position des points avec leur appartenance aux sites. Il en est de même pour l'**effet des saisons**.
+
+# Filières REP
+
+Cette première partie de l'analyse ne prend en compte que la classification des macrodéchets par **filière à responsabilité élargie des producteurs (REP)**. Une sélection de catégories d'intérêt est d'abord utilisée pour représenter les données brutes sous forme de graphiques temporels interactifs. L'analyse en Composantes Principales (ACP) consécutive permet ensuite d'identifier la présence potentielle de groupement de plages par leurs composition en macrodéchets classifiés par filière REP.
+
+Voici toutes les filières REP dont **au moins un macrodéchet à été collecté** sur l'ensemble des campagnes ainsi que le nombre total d'objets toutes campagnes confondues par 100 m de linéaire côtier:
+
+```{r}
+macrodechets_selection(macrodechets_counts, "REP") %>%
+  colSums() %>%
+  tibble(`Filières REP` = names(.), `Total d'objets / 100m` = .) %>%
+  mutate(`Total d'objets / 100m` = format(round(`Total d'objets / 100m`, 2), scientific = FALSE)) %>%
+  arrange(desc(`Total d'objets / 100m`)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE,
+                position = "left") %>%
+  row_spec(0, bold = TRUE)
+```
+
+Ici la catégorie *Vide* correspond aux objets n'ayant pu être catégorisés dans une filière REP et sera donc mise à l'écart pour les analyses statistiques.
+
+## Représentations interactives des catégories d'intérêt
+
+Les **filières REP d'intérêt selectionnées** sont :
+
+-   Les articles de bricolage et de jardin
+-   Les articles de sport et de loisirs
+-   Le bâtiment
+-   Les déchets d'emballages ménagers
+-   Les engins de pêche
+-   Les jouets
+-   Les produits du tabac
+-   Les textiles sanitaires à usage unique
+
+```{r}
+macrodechets_counts_filt <- macrodechets_counts %>%
+  filter(categorie_sub == "REP") %>%
+  filter(categorie_specifique %in% c(
+    "Articles de bricolage et de jardin", 
+    "Articles de sport et de loisirs", 
+    "Bâtiment", 
+    "Déchets d'emballages ménagers", 
+    "Engins de pêche", 
+    "Jouets", 
+    "Produits du tabac", 
+    "Textiles sanitaires à usage unique"))
+```
+
+La première représentation interactive permet de visualiser les données de **filière REP par site**. Il est possible de passer d'un site à l'autre en cliquant sur les petits ronds de la barre de sélection la plus en bas. La plage temporelle peut-être choisie en faisant glisser les extrémités de la barre bleue en dessous du graphe. Les catégories peuvent être selectionnées ou désélectionnées en cliquant sur les noms de la légende en haut à droite du graphe. Finalement, survoler une barre avec le curseur permet d'afficher la valeur associée, dont l'unité est en nombre d'objets pour 100 mètres de linéaire côtier :
+
+```{r}
+#| fig-height: 10
+t1 <- macrodechets_counts_filt %>%
+  select(site, date, categorie_specifique, valeur_100m) %>%
+  pivot_wider(names_from = categorie_specifique, values_from = valeur_100m) %>%
+  group_by(site)
+
+t1 %>%
+  e_charts(date, timeline = TRUE) %>%
+  e_bar(serie = `Articles de bricolage et de jardin`, name = "Articles de bricolage et de jardin") %>%
+  e_bar(serie = `Articles de sport et de loisirs`, name = "Articles de sport et de loisirs") %>%
+  e_bar(serie = `Bâtiment`, name = "Bâtiment") %>%
+  e_bar(serie = `Déchets d'emballages ménagers`, name = "Déchets d'emballages ménagers") %>%
+  e_bar(serie = `Engins de pêche`, name = "Engins de pêche") %>%
+  e_bar(serie = `Jouets`, name = "Jouets") %>%
+  e_bar(serie = `Produits du tabac`, name = "Produits du tabac") %>%
+  e_bar(serie = `Textiles sanitaires à usage unique`, name = "Textiles sanitaires à usage unique") %>%
+  e_tooltip(trigger = "item") %>%
+  e_x_axis(type = "time", splitLine = list(show = TRUE)) %>%
+  e_y_axis(name = "Nombre d'objets") %>%
+  e_title("Macrodéchets par site - filières REP") %>%
+  e_axis_labels(x = "date", y = "Objets/100m linéaire côtier") %>%
+  e_datazoom(
+    x_index = 0, 
+    type = "slider",
+    bottom = "10%"  # Adjust the position of the datazoom slider
+  ) %>%
+  e_timeline_opts(
+    bottom = "0%"  # Adjust the bottom so the timeline is visible
+  ) %>%
+  e_grid(
+    top = "10%",   # Space for title
+    left = "5%",  # Space for y-axis label
+    right = "5%", # Space for the legend
+    bottom = "20%" # Space for timeline and datazoom
+  ) %>%
+  e_theme("vintage") %>%
+  e_legend(orient = "vertical", right = "10%")
+
+```
+
+\
+\
+La seconde représentation interactive permet de visualiser les données **par catégorie**. Le choix de la catégorie se fait à l'aide de la barre de sélection en bas du graphe et les sites en cliquant sur les noms ou la couleur de la légende. Le reste fonctionne de la même manière que le graphe précédent. Voici donc la représentation interactive par catégories :\
+\
+
+```{r}
+#| fig-height: 10
+
+t2 <- macrodechets_counts_filt %>%
+  select(site, date, categorie_specifique, valeur_100m) %>%
+  mutate(YearMonth = floor_date(ymd(date), "month")) %>%  # Create Year-Month column
+  pivot_wider(names_from = site, values_from = valeur_100m) %>%
+  group_by(categorie_specifique)
+
+t2 %>%
+  e_charts(YearMonth, timeline = TRUE) %>%
+  e_bar(serie = `Ferringule`, name = "Ferringule") %>%
+  e_bar(serie = `La Roya`, name = "La Roya") %>%
+  e_bar(serie = `Saleccia`, name = "Saleccia") %>%
+  e_bar(serie = `Petracurbara`, name = "Petracurbara") %>%
+  e_bar(serie = `Macinaghju`, name = "Macinaghju") %>%
+  e_bar(serie = `Barcaghju`, name = "Barcaghju") %>%
+  e_bar(serie = `Alisu`, name = "Alisu") %>%
+  e_tooltip(trigger = "item") %>%
+  e_x_axis(type = "category", splitLine = list(show = TRUE)) %>%
+  e_y_axis(name = "Objets/100m linéaire côtier") %>%
+  e_title("Macrodéchets par catégorie - filières REP") %>%
+  e_legend(orient = "vertical", right = "5%", top = "10%") %>%
+  e_datazoom(
+    x_index = 0, 
+    type = "slider",
+    bottom = "10%"  # Adjust the position of the datazoom slider
+  ) %>%
+  e_timeline_opts(
+    bottom = "0%"  # Adjust the bottom so the timeline is visible
+  ) %>%
+  e_grid(
+    top = "10%",   # Space for title
+    left = "5%",  # Space for y-axis label
+    right = "5%", # Space for the legend
+    bottom = "20%" # Space for timeline and datazoom
+  ) %>%
+  e_theme("vintage")
+
+```
+
+\
+Parmi les catégories d'intérêt selectionnées, les **textiles à usages unique** et les **déchets d'emballages ménagers** sont présents en proportion notoire sur la majorité des sites. Les **produits du tabac** représentent une grande proportion des déchets, voire la majorité à certaines saisons, aux sites de La Roya, Petracurbara et Saleccia. Ces informations coïncident avec le nombre total d'objets évoqué précédemment.
+
+## ACP
+
+L'**analyse en composantes principales** est utilisée dans ce contexte avec la perspective de trouver des regroupement de sites ou de saisons permettant de caractériser des plages types. L'ACP permet de représenter les unités d'échantillonnages définies par une combinaison saison-plage dans un nombre de dimension réduit (dans l'idéal 2 ou 3) à partir des données de composition en macrodéchets catégorisés en filières REP.
+
+Pour le cas spécifique des filières REP, la catégorie *Vide* est mise de côté car celle-ci correspond aux objets qui n'ont pu être catégorisés dans les filières existantes. Ainsi cette catégorie ne permet pas de bien distinguer les propriétés des plages par les caractéristiques des filières REP.
+
+```{r}
+# Data preparation
+macrodechets_rep <- macrodechets_selection(
+  macrodechets_counts, "REP", c("Vide") # "Véhicules hors d’usage (vhu)", 
+)
+macrodechets_rep_hellinger <- vegan::decostand(macrodechets_rep, method = "hellinger")
+macrodechets_rep_habillage <- macrodechets_habillage(macrodechets_counts, "REP")
+```
+
+Les données de dénombrement sont **transformées par méthode d'Hellinger** et ensuite utilisées pour le calcul de l'ACP. L'ACP permet d'obtenir les nouvelles coordonnées des unités d'échantillonnage site-saison dans les nouvelles dimensions pour lesquelles la variance est la plus représentative des différents sites. Dans un langage approximatif mais plus simple, le nuage de points des combinaisons site-saison caractérisé par le nombre de macrodéchet de chaque filière REP sera représenté de la manière la plus "aplatie" possible, où les points seront les plus distinguables les uns des autres. Dans cette représentation, les groupes de site-saison sont plus facile à distinguer qu'une interprétation des données brutes sans analyse (cf contexte).
+
+L'ACP calculée, la première étape qui suit consiste à **choisir le nombre de dimensions** (donc le nombre d'axes de l'espace de représentation final) le plus adapté :
+
+```{r}
+rep_pca <- prcomp(macrodechets_rep_hellinger, center = TRUE, scale. =  FALSE)
+fviz_eig(rep_pca)
+summary(rep_pca)
+```
+
+Parmi les nouvelles dimensions calculées de l'ACP, la **dimension 1 (PC1)** explique plus de **40%** de la variance totale. Ceci signifie que cette dimension 1 est relativement bien efficace dans la distinction des combinaison sites-saison. La **dimension 2 (PC2)** explique **18%** de la variance totale, ce qui représente une **proportion cumulée de 60%** en choisissant deux dimensions. Cette proportion n'est pas négligeable mais le saut de pourcentage de variance est drastique entre la dimension 1 et la dimension 2 (cf. pentes entre les dimensions représentées dans la figure ci-dessus). La **dimension 3 (PC3)** explique **14%** de la variance totale, ce qui est moindre mais permet d'obtenir une proportion cumulée de 74% de variance en choisissant les 3 premières dimensions. Un choix purement visuel du nombre de dimension indiquerait qu'il faudrait préférentiellement choisir deux dimensions, puisque le saut de variance est drastique entre les deux premières dimensions et que la proportion cumulée de variance est de 60%, ce qui parait suffisant pour distinguer les site-saison entre eux. Cela correspondrait à représenter ces combinaisons site-saison dans un plan.
+
+Rajouter la 3ème dimension permettrait d'ajouter plus de représentativité des différences entre sites mais complexifierait aussi la visualisation, puisque l'espace de représentation choisi serait un espace à 3 dimensions. Pour s'assurer de la pertinence du nombre d'axe à choisir, il existe une analyse dédiée aux ACP : l'**analyse parallèle de Horn**. Voici le résultat de cette analyse sur 30 000 itérations :
+
+```{r}
+paran::paran(macrodechets_rep_hellinger, 
+             iterations = 30000,
+             quietly = FALSE,
+             status = FALSE, 
+             all = FALSE, 
+             cfa = FALSE, 
+             graph = TRUE,
+             color = FALSE, 
+             col = c("black","red","blue"),
+             lty = c(1,2,3), 
+             lwd = 1, 
+             legend = TRUE, 
+             file = "",
+             width = 640,
+             height = 640, 
+             grdevice = "png", 
+             seed = 0, 
+             mat = NA, 
+             n = NA)
+```
+
+Sans rentrer dans le détail du fonctionnement de cette méthode, le nombre de dimensions idéal à conserver correspond au nombre de points dont la valeur propre ajustée (Adjusted Ev) est supérieur au seuil. Ici ces points correspondent aux points noirs sur la ligne continue (Adjusted Ev retained). Nous **choisissons donc 3 dimensions** pour la représentation de l'ACP.
+
+Maintenant que les 3 premiers axes sont choisis, il est important de savoir si l'on peut **statistiquement regrouper les combinaisons site-saison en groupes distincts** les uns des autres. Une des statistiques permettant d'estimer le potentiel de partitionnement des données est la statistique d'**Hopkins**. Plus celle-ci est proche de 1, plus un partitionnement est pertinent à mener. Voici donc sa valeur pour les données site-saison utilisant les trois dimensions selectionnées :
+
+```{r}
+hopK <- hopkins::hopkins(rep_pca$x[, 1:3])
+hopK
+```
+
+A partir de cette statistique, il est possible de calculer une p-value permettant d'inférer la possibilité de partitionnement :
+
+```{r}
+hopkins::hopkins.pval(hopK, dim(macrodechets_rep_hellinger)[1])
+```
+
+La p-value de la statistique d'Hopkins est inférieure au seuil choisi de 5% (i.e. 0.05). Il est donc **raisonnable** de mener un **partitionnement des données**, permettant de distinguer des groupes site-saison distincts.
+
+Pour estimer le **nombre de clusters** (groupes) idéal dans les 3 dimensions retenues en utilisant le partitionnement par k-moyennes, une représentation utilisant une méthode appelée **largeur moyenne de la silouhette** est présentée ci-dessous :
+
+```{r}
+fviz_nbclust(rep_pca$x[, c(1:3)], FUNcluster = kmeans, k.max = 10) 
+```
+
+Au vu de cette représentation, le **nombre de clusters idéal est de deux**. Ainsi, le partitionnement est choisi pour obtenir deux groupes de sites-saisons. La prochaine étape est d'estimer la contribution relative des variables, i.e. les filières REP, aux dimensions choisies. Les trois graphes suivant permettent de visualiser l'**importance de chaque filière REP** à chaque **axe de l'ACP**. La ligne rouge de référence correspond à une valeur seuil de contribution.
+
+-   Les 10 variables contribuant le plus à la **première dimension** sont :
+
+```{r}
+fviz_contrib(rep_pca, "var", axes = 1, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+Seules les filières **produits du tabac**, déchets d'**emballages ménagers** et **bâtiment** contribuent significativement à la première dimension. Les emplacements des sites-saisons par rapport à cette dimension dans les projections en 2D sont ainsi définis par ces variables
+
+-   Les 10 variables contribuant le plus à la **seconde dimension** sont :
+
+```{r}
+fviz_contrib(rep_pca, "var", axes = 2, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30)) 
+```
+
+Ainsi les filières des **textiles sanitaires à usages uniques**, **engins de pêche**, **bâtiment** et déchets d'**emballages ménagers** contribuent significativement à la seconde dimension. Les emplacements des sites-saisons par rapport à cette dimension dans les projections en 2D sont ainsi définis par ces variables.
+
+-   Les 10 variables contribuant le plus à la **troisième dimension** sont :
+
+```{r}
+fviz_contrib(rep_pca, "var", axes = 3, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30)) 
+```
+
+De la même manière les variables contribuant le plus à la troisième dimension sont les filières **bâtiment**, **textiles sanitaires à usage unique** et les **engins de pêche**.
+
+Concentrons nous maintenant sur la **représentation** des données dans les **deux premières dimensions** choisies parmi les 3 sélectionnées pour l'ACP. La figure suivante permet de représenter les **contributions des variables** dans le plan défini par les axes 1 et 2 (dimensions 1 et 2) de l'ACP :
+
+```{r}
+fviz_pca_var(rep_pca, axes = c(1, 2), repel = TRUE, col.var = "contrib", select.var = list(contrib = 5)) +
+  scale_color_gradient2(low = "white", mid = "blue", high = "red", midpoint = 10, space = "Lab") +
+  theme(legend.position = 'bottom')
+```
+
+Cette représentation résume les informations des contributions aux axes 1 et 2 dans un plan à deux dimensions, permettant l'interprétation des emplacements des sites-saisons par la suite. Ainsi, un site-saison situé à gauche du plan de projection sera caractérisé par une présence plus importante de produits du tabac, et à droite par une présence moindre de ces produits. Il aura par contre une proportion plus importante de macrodéchets des filières d'emballages ménagers et du bâtiment lorsque qu'il sera situé à droite du plan et inversement pour la gauche. De la même manière, un site-saison aura en haut du plan une proportion plus importante d'engins de pêche et d'emballages ménagers mais moins de textiles sanitaires à usage unique ou de déchets du bâtiment. Inversement pour un site-saison en bas de l'origine du plan de projection.
+
+Voici donc maintenant la **représentation** dans le plan de projection des sites-saison regroupés par **partitionnement des k-moyennes** :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+clustering_pca <- eclust(rep_pca$x[, 1:2], "kmeans", hc_metric = "eucliden", k = 2, graph = FALSE)
+
+fviz_pca_ind(rep_pca, axes = c(1, 2), habillage = clustering_pca$cluster,
+             addEllipses = TRUE, ellipse.level = 0.7, repel = TRUE)
+
+```
+
+Comme évoqué précedemment, deux groupes sont distinguables les uns des autres. Le groupe situé à **gauche** du plan de projection correspond aux sites-saisons dont la **proportion de macrodéchets de la filière de produit du tabac est plus importante** que celui de droite mais présente moins de déchets des filières du bâtiment et d'emballages ménagers. L'axe 2 ne contribue pas à distinguer ces groupes entre eux mais explique plutôt la variance au sein de chaque groupe.
+
+Afin d'approfondir l'analyse, on peut maintenant représenter les sites-saisons avec des **couleurs différentes pour chaque site** (donc indépendamment de la saison), afin de voir si certaines plages ressortent particulièrement dans cette projection à deux dimensions :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10
+
+fviz_pca_biplot(
+  axes = c(1, 2), rep_pca, 
+  repel = TRUE,
+  addEllipses = FALSE,
+  col.var = "black",
+  select.var = list(contrib = 5),
+  habillage = macrodechets_rep_habillage[["site"]]
+) 
+
+```
+
+Au vu de cette représentation, toutes les collectes du site de **La Roya** sont caractérisées par la présence plus importante de **produits du tabac** et des déchets d'emballages ménagers et du bâtiment plus faibles que certaines plages. Les plages de l'**Alisu, Macinaghju et Barcaghju** ont une majorité des sites-saisons opposés dans le plan de projection au site de La Roya par rapport à l'axe 1. Ces plages sont ainsi caractérisées par une proportion de **produits du tabac faible** et une proportion en **déchets d'emballages ménagers et du bâtiment plus importante** que La Roya. Les plages de Ferringule, Petracurbara et Saleccia sont elles présentes dans les deux clusters et ne sont donc pas distinguables par l'axe 1.
+
+Si l'on considère néanmoins les saisons, il est possible d'affiner l'interprétation de la composition en macrodéchets de ces plages. Pour les plages de **Ferringule, Petracurbara et Saleccia**, les sites-saisons présentent une plus forte proportion de **produits du tabac** en **été** et **début d'automne** entre le mois de juin et d'octobre (à l'exception du site-saison de Ferringule en mai). A l'inverse l'**hiver** et le **printemps** sont caractérisés par des proportions en **emballages ménagers et du bâtiment plus important** mais des **produits du tabac moindres**. La représentation des sites-saisons en couleur par saison confirme ces informations à l'échelle de toutes les plages :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10
+
+fviz_pca_biplot(
+  axes = c(1, 2), rep_pca, 
+  repel = TRUE,
+  addEllipses = FALSE,
+  col.var = "black",
+  select.var = list(contrib = 5),
+  habillage = macrodechets_rep_habillage[["saison"]]
+) 
+
+```
+
+La saison de l'**été** est généralement caractérisée par une **proportion en produits du tabac plus importante** et des **emballages ménagers et du bâtiment moindre**, **à l'inverse de l'hiver et du printemps**. A l'échelle de tous les sites, l'**automne** est néanmoins une **période de transition** où la présence de produits du tabac est définie par le type de plage.
+
+Il est par contre difficile d'interpréter des différences propres à des saisons ou des sites en se basant sur la deuxième dimension. D'autres paramètres infèrent peut-être sur ces distinctions sites-saisons.
+
+## Points-clés
+
+Ainsi, au vu de tous ces éléments, il est possible de distinguer **3 grands types de plages** en considérant la catégorisation des macrodéchets collectés sur les plages par leur appartenance aux **filières REP** :
+
+-   Les plages du type La Roya, **majoritairement polluées par des produits du tabac toute l'année**. En comparaison aux autres plages, elle présente moins d'emballages ménagers et de déchets du bâtiment. Cette plage est la plus proche géographiquement de la ville avec le plus d'habitant parmi toutes les plages (Saint-Florent). Il s'agit donc non seulement d'une plage fréquentée l'été avec les activités touristiques mais aussi suffisamment grande et accessible pour être polluée par les déchets du tabac l'hiver, probablement dû aux fréquentations des habitants locaux.
+
+-   Les plages du type Alisu, Macinaghju et Barcaghju, où **les déchets du tabac sont beaucoup moins présents toute l'année** mais les déchets d'emballages ménagers et du bâtiment le sont plus. Ces trois plages sont celles où les villes les plus proches ont le moins d'habitant parmi toutes les plages prospectées.
+
+-   Les plages du type Ferringule, Petracurbara et Saleccia présentent une **variation saisonnière** des macrodéchets. L'**été** et le début d'**automne** sont caractérisés par une proportion plus forte en **produits du tabac**, tandis que l'**hiver** et le **printemps** sont caractérisés par une proportion plus importante en **emballages ménagers** et en **déchets du bâtiment**. Curieusement, ces plages correspondent à celles les plus éloignées des ports. Les ports les plus proches sont en effet en moyenne à 10.4 km pour ces plages types tandis que les ports sont à 1 km de distance pour les deux autres plages-types.
+
+Cette saisonnalité de filière REP pour ce dernier type de plage pourrait donc possiblement s'expliquer par une **présence accrue de bateaux l'été**, en faisant l'hypothèse que les plages les plus distantes des ports soient plus fréquentées, puisque il serait par exemple plus dur de s'abriter au port à l'inverse d'une plage proche d'un port ou bien qu'il soit plus agréable d'être présent à une plage éloignée d'une zone de circulation de bateaux. Ces informations méritent d'être étoffées en faisant l'acquisition de données de **fréquentation plaisancière et des plages** à chaque saison de l'année.
+
+# Secteurs d'activité
+
+Cette partie de l'analyse ne prend en compte que la classification des macrodéchets par **secteurs d'activité**. Les étapes sont les mêmes que la partie précédente.
+
+Voici tous les secteurs d'activité pour lesquels au moins un macrodéchet a été collecté sur l'ensemble des campagnes ainsi que le nombre total d'objets toutes campagnes confondues par 100m de linéaire côtier :
+
+```{r}
+macrodechets_selection(macrodechets_counts, "secteur") %>%
+  colSums() %>%
+  tibble(`Secteurs d'activité` = names(.), `Total d'objets / 100m` = .) %>%
+  mutate(`Total d'objets / 100m` = format(round(`Total d'objets / 100m`, 2), scientific = FALSE)) %>%
+  arrange(desc(`Total d'objets / 100m`)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE,
+                position = "left") %>%
+  row_spec(0, bold = TRUE)
+
+```
+
+Ici, la catégorie *Indéterminé* correspond aux objets qui n'ont pu être catégorisés dans un secteur d'activité précis et sera donc mise à l'écart pour les analyses statistiques.
+
+## Représentations interactives des catégories d'intérêt
+
+Les **secteurs d'activité d'intérêt sélectionnés** pour les représentations interactives sont :
+
+-   Alimentation
+
+-   Aquaculture
+
+-   Bâtiment, travaux et matériaux de construction
+
+-   Chasse et armement
+
+-   Cosmétiques, hygiène et soins personnels
+
+-   Détergents et produits d'entretiens
+
+-   Emballage industriel et colis
+
+-   Jouets et loisirs
+
+-   Plasturgie
+
+-   Pêche
+
+-   Tabac
+
+-   Traitement des eaux
+
+-   Vaisselle à usage unique
+
+```{r}
+macrodechets_counts_secteurs <- macrodechets_counts %>%
+  filter(categorie_sub == "secteur") %>%
+  filter( categorie_specifique %in% c(
+    "Alimentation",
+    "Aquaculture", 
+    "Bâtiment, travaux et matériaux de construction",
+    "Chasse et armement", 
+    "Cosmétiques, hygiène et soins personnels",
+    "Détergents et produits d'entretiens",
+    "Emballage industriel et colis",
+    "Jouets et loisir",
+    "Plasturgie",
+    "Pêche",
+    "Tabac",
+    "Traitement des eaux",
+    "Vaisselle à usage unique"
+  ))
+```
+
+La première représentation interactive permet de visualiser les données de **secteurs d'activité par site** :
+
+```{r}
+
+#| fig-height: 10
+t1 <- macrodechets_counts_secteurs %>%
+  select(site, date, categorie_specifique, valeur_100m) %>%
+  pivot_wider(names_from = categorie_specifique, values_from = valeur_100m) %>%
+  group_by(site)
+
+t1 %>%
+  e_charts(date, timeline = TRUE) %>%
+  e_bar(serie = `Alimentation`, name = "Alimentation") %>%
+  e_bar(serie = `Aquaculture`, name = "Aquaculture") %>%
+  e_bar(serie = `Bâtiment, travaux et matériaux de construction`, name = "Bâtiment, travaux et matériaux de construction") %>%
+  e_bar(serie = `Chasse et armement`, name = "Chasse et armement") %>%
+  e_bar(serie = `Cosmétiques, hygiène et soins personnels`, name = "Cosmétiques, hygiène et soins personnels") %>%
+  e_bar(serie = `Détergents et produits d'entretiens`, name = "Détergents et produits d'entretiens") %>%
+  e_bar(serie = `Emballage industriel et colis`, name = "Emballage industriel et colis") %>%
+  e_bar(serie = `Jouets et loisir`, name = "Jouets et loisir") %>%
+  e_bar(serie = `Plasturgie`, name = "Plasturgie") %>%
+  e_bar(serie = `Pêche`, name = "Pêche") %>%
+  e_bar(serie = `Tabac`, name = "Tabac") %>%
+  e_bar(serie = `Traitement des eaux`, name = "Traitement des eaux") %>%
+  e_bar(serie = `Vaisselle à usage unique`, name = "Vaisselle à usage unique") %>%
+  e_tooltip(trigger = "item") %>%
+  e_x_axis(type = "time", splitLine = list(show = TRUE)) %>%
+  e_y_axis(name = "Nombre d'objets") %>%
+  e_title("Macrodéchets par site - secteurs d'activité") %>%
+  e_axis_labels(x = "date", y = "Objets/100m linéaire côtier") %>%
+  e_theme("vintage") %>%
+  e_legend(orient = "horizontal", top = "8%", right = "10%", left = "10%") %>%
+  e_datazoom(
+    x_index = 0, 
+    type = "slider",
+    bottom = "10%"  # Adjust the position of the datazoom slider
+  ) %>%
+  e_timeline_opts(
+    bottom = "0%"  # Adjust the bottom so the timeline is visible
+  ) %>%
+  e_grid(
+    top = "10%",   # Space for title
+    left = "5%",  # Space for y-axis label
+    right = "5%", # Space for the legend
+    bottom = "20%" # Space for timeline and datazoom
+  ) 
+```
+
+\
+\
+La seconde représentation interactive permet de visualiser les données **par catégorie** :\
+\
+
+```{r}
+#| fig-height: 10
+macrodechets_counts_secteurs %>%
+  select(site, date, categorie_specifique, valeur_100m) %>%
+  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>%  # Create Year-Month column
+  pivot_wider(names_from = site, values_from = valeur_100m) %>%
+  group_by(categorie_specifique) %>%
+  e_charts(YearMonth, timeline = TRUE) %>%
+  e_bar(serie = `Ferringule`, name = "Ferringule") %>%
+  e_bar(serie = `La Roya`, name = "La Roya") %>%
+  e_bar(serie = `Saleccia`, name = "Saleccia") %>%
+  e_bar(serie = `Petracurbara`, name = "Petracurbara") %>%
+  e_bar(serie = `Macinaghju`, name = "Macinaghju") %>%
+  e_bar(serie = `Barcaghju`, name = "Barcaghju") %>%
+  e_bar(serie = `Alisu`, name = "Alisu") %>%
+  e_tooltip(trigger = "item") %>%
+  e_x_axis(type = "category", splitLine = list(show = TRUE)) %>%
+  e_y_axis(name = "Objets/100m linéaire côtier") %>%
+  e_title("Macrodéchets par catégorie - secteurs d'activité") %>%
+  e_legend(
+    orient = "vertical", 
+    right = "5%", # Adjust the right position
+    top = "10%",  # Move it down
+    itemWidth = 20,  # Set legend item size
+    itemHeight = 14,
+    padding = 5
+  ) %>%
+  e_datazoom(
+    x_index = 0, 
+    type = "slider",
+    bottom = "10%"  # Adjust the position of the datazoom slider
+  ) %>%
+  e_timeline_opts(
+    bottom = "0%"  # Adjust the bottom so the timeline is visible
+  ) %>%
+  e_grid(
+    top = "10%",   # Space for title
+    left = "5%",  # Space for y-axis label
+    right = "5%", # Space for the legend
+    bottom = "20%" # Space for timeline and datazoom
+  ) %>%
+  e_theme("vintage")
+```
+
+## ACP
+
+L'**analyse en composantes principales** est utilisée dans ce contexte avec la perspective de trouver des regroupements de sites ou de saisons, permettant de caractériser des plages types définies par les **secteurs d'activités**. Pour le cas spécifique de ces secteurs, la catégorie *Indéterminé* est mise de côté car celle-ci correspond aux objets qui n'ont pu être catégorisés dans les secteurs existants.
+
+```{r}
+macrodechets_secteurs <- macrodechets_selection(macrodechets_counts, "secteur", categorie_removal = c("Indéterminé"))
+macrodechets_secteurs_hellinger <- vegan::decostand(macrodechets_secteurs, method = "hellinger")
+macrodechets_secteurs_habillage <- macrodechets_habillage(macrodechets_counts, "secteur")
+
+```
+
+Les données de dénombrement sont **transformées par méthode d'Hellinger** et ensuite utilisées pour le calcul de l'ACP. L'ACP permet d'obtenir les nouvelles coordonnées des unités d'échantillonnage site-saison dans les nouvelles dimensions pour lesquelles la variance est la plus représentative des différents sites.
+
+L’ACP calculée, la première étape qui suit consiste à **choisir le nombre de dimensions** (donc le nombre d’axes de l'espace de représentation final) le plus adapté :
+
+```{r}
+secteurs_pca <- prcomp(macrodechets_secteurs_hellinger, center = TRUE, scale. =  FALSE)
+fviz_eig(secteurs_pca)
+summary(secteurs_pca)
+```
+
+Parmi les nouvelles dimensions calculées de l’ACP, la **dimension 1 (PC1)** explique **29%** de la variance totale. La **dimension 2 (PC2)** explique **13%** de la variance totale, ce qui représente une **proportion cumulée** de **41%** en choisissant deux dimensions. La **dimension 3 (PC3)** explique **10%** de la variance totale, avec une proportion cumulée de **51%** de la variance totale en choisissant les 3 premières dimensions. Pour choisir pertinemment le nombre d'axes, voici le résultat de l'**analyse parallèle de Horn** à l'identique du cas des filières REP, sur 30 000 itérations :
+
+```{r}
+paran::paran(macrodechets_secteurs_hellinger, 
+             iterations = 30000,
+             quietly = FALSE,
+             status = FALSE, 
+             all = FALSE, 
+             cfa = FALSE, 
+             graph = TRUE,
+             color = FALSE, 
+             col = c("black","red","blue"),
+             lty = c(1,2,3), 
+             lwd = 1, 
+             legend = TRUE, 
+             file = "",
+             width = 640,
+             height = 640, 
+             grdevice = "png", 
+             seed = 0, 
+             mat = NA, 
+             n = NA)
+```
+
+Le nombre de dimensions idéal à conserver correspond au nombre de points dont la valeur propre ajustée (*Adjusted Ev*) est supérieur au seuil. Ici ces points correspondent aux points noirs sur la ligne continue (*Adjusted Ev retained*). N'observant qu'une dimension significative, nous **choisissons donc 2 dimensions** pour la représentation de l’ACP, étant donné qu'il y a besoin d'au moins deux dimensions pour une représentation propre et interprétable.
+
+Maintenant que les 2 premiers axes sont choisis, il est important de savoir si l’on peut **statistiquement regrouper les combinaisons site-saison en groupes distincts**. Voici donc la valeur de la statistique d'**Hopkins** pour les données site-saison utilisant les deux dimensions conservées :
+
+```{r}
+hopK <- hopkins::hopkins(secteurs_pca$x[, 1:2])
+hopK
+```
+
+A partir de cette statistique, il est possible de calculer une p-value permettant d’inférer la possibilité de partitionnement :
+
+```{r}
+hopkins::hopkins.pval(hopK, dim(macrodechets_secteurs_hellinger)[1])
+```
+
+La p-value de la statistique d’Hopkins est inférieure au seuil choisi de 5% (i.e. 0.05). Il est donc **raisonnable** de mener un **partitionnement des données**, permettant de distinguer des groupes site-saison distincts.
+
+```{r}
+fviz_nbclust(secteurs_pca$x[, c(1:2)], FUNcluster = kmeans, k.max = 10) 
+```
+
+Au vu de cette représentation, le **nombre de clusters idéal est de deux**. Ainsi, le partitionnement est choisi pour obtenir deux groupes de sites-saisons.
+
+-   Les 10 variables contribuant le plus à la **première dimension** sont :
+
+```{r}
+fviz_contrib(secteurs_pca, "var", axes = 1, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+Ainsi le secteur d'activités **Tabac** contribue majoritairement à l'axe 1, et les secteurs **Alimentation**, **Bâtiments, travaux et matériaux de construction** ainsi que **Chasse et armement** contribuent en moindre mesure à l'axe 1.
+
+-   Les 10 variables contribuant le plus à la **seconde dimension** sont :
+
+```{r}
+fviz_contrib(secteurs_pca, "var", axes = 2, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+Ainsi les secteurs **Bâtiments, travaux et matériaux de construction**, **Emballages industriel et colis**, **Pêche**, **Cosmétiques, hygiènes et soins personnels** et **Graphique, papeterie et fournitures de bureau** contribuent à la deuxième dimension de l'ACP.
+
+La figure suivante permet de représenter les **contributions des variables** dans le plan de projection défini par les axes 1 et 2 (dimensions 1 et 2) de l'ACP en conservant les secteurs sélectionnés :
+
+```{r}
+fviz_pca_var(secteurs_pca, axes = c(1, 2), repel = TRUE, col.var = "contrib", select.var = list(contrib = 8)) +
+  scale_color_gradient2(low = "white", mid = "blue", high = "red", midpoint = 10, space = "Lab") +
+  theme(legend.position = 'bottom')
+```
+
+Au vu de cette représentation, un site-saison situé à droite du plan de projection a une composition en macrodéchets issue du secteur du tabac plus importante qu'un site-saison à gauche du plan. Par sens de vecteurs opposés, les sites-saisons à gauche du plan ont une composition caractérisé par moins de déchets du secteur du tabac et plus des secteurs de l'alimentation ; de chasse et armement , du bâtiment, travaux et matériaux de construction.
+
+De même, les sites-saisons en haut du plan sont distinguables par plus de macrodéchêts issus des secteurs de la pêche et des emballages industriels tandis que ceux en bas du plan de projection sont caractérisés par une proportion plus importante de déchets cosmétiques, hygiène et soins personnels, de déchets du bâtiment et de déchets de papeterie.
+
+Voici donc maintenant la **représentation** dans le plan de projection dans les deux premières dimensions des sites-saison regroupés par **partitionnement des k-moyennes** :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10   
+
+clustering_pca <- eclust(secteurs_pca$x[, 1:2], "kmeans", hc_metric = "eucliden", k = 2, graph = FALSE)
+
+fviz_pca_ind(secteurs_pca, axes = c(1, 2), habillage = clustering_pca$cluster,
+             addEllipses = TRUE, ellipse.level = 0.7, repel = TRUE)
+
+```
+
+De manière similaire à l'analyse des filières REP, les deux groupes issus du partitionnement par k-moyennes se distinguent principalement par la **dimension 1**. Ainsi le cluster de droite regroupe les sites-saisons caractérisés par une proportion de déchets du secteur d'activités du tabac plus importante que le cluster de gauche. Les autres secteurs contribuant à la dimension 1 participent aussi à ce partitionnement.
+
+La représentation des sites-saisons avec des **couleurs différentes pour chaque site** (donc indépendamment de la saison) fait ressortir des différences propres aux sites :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(secteurs_pca, repel = TRUE,
+                #col.var = "cos2", # Variables color,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 8),
+                habillage = macrodechets_secteurs_habillage[["site"]]) 
+
+```
+
+Les sites de **La Roya** et **Saleccia** font tous les deux partie exclusivement du cluster rouge quelque soit la saison (à l'exception de janvier 2023 pour Saleccia). Ils sont ainsi caractérisés par une proportion de déchets de **secteur du tabac plus important que d'autres sites** ainsi que peu de déchets de l'alimentation, de la chasse et armement et du bâtiment.
+
+Les sites **Alisu** et **Barcaghju** font eux exclusivement partie du cluster bleu quelque soit la saison (à l'exception d'août 2023 pour Barcaghju), et sont donc caractérisés par rapport aux autres sites de **moins de déchets du secteur du tabac et plus de déchets du bâtiment, du secteur de l'alimentation et de la chasse et de l'armement**.
+
+Les autres sites, i.e. **Petracurbara**, **Ferringule** et **Macinaghju**, présentent une **variation saisonnière** très similaire à l'analyse des filières REP. Les saisons de l'**été** et de l'**automne** sont caractérisées par une proportion de déchets du secteur du tabac plus important que l'**hiver** et le **printemps**. Inversement pour les autres secteurs contribuant à la dimension 1.
+
+Bien que la dimension 2 ne ressorte pas dans le partitionnement en deux clusters et que sa proportion de variance ne soit que de 13%, la **dispersion** dans le plan de projection au sein du **cluster bleu selon la dimension 2** est plus importante que celle du cluster rouge. Deux campagnes en novembre 2022 et en mars 2024 à Barcaghju sont caractérisées par une proportion plus importante d'emballages industriels et de pêche ainsi qu'une proportion moindre de déchets du bâtiment, et des cosmétiques en comparaison aux autres sites. De même, la majorité des campagnes à la plage de l'Alisu sont caractérisées par une proportion importante de déchets du secteur du bâtiment en comparaison aux autres sites.
+
+La représentation des sites-saisons avec des **couleurs différentes pour chaque saison** (donc indépendamment de la saison) confirme les interprétations faites précédemment à l'échelle globale du parc :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(secteurs_pca,
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 8),
+                habillage = macrodechets_secteurs_habillage[["saison"]]) 
+
+```
+
+La période de l'**été** est caractérisée par une proportion de déchets du secteur du tabac plus importante que l'**hiver** et le **printemps**. L'**automne** est une période de transition où les caractéristiques de composition dépendent du site.
+
+## Points-clés
+
+Ainsi, au vu de tous ces éléments, il est possible de distinguer **3 grands types de plages** en considérant la catégorisation des macrodéchets collectés sur les plages par leur appartenance aux **secteurs d'activité** :
+
+-   Les plages de type La Roya et Saleccia les déchets du **secteur d'activité du tabac** sont présent en plus grande proportion **toute l'année** en comparaison aux autres plages types. Ces plages sont de grandes plages connues pour être assez fréquentées. En comparant à l'analyse des filières REP, la plage de La Roya est dans la même catégorie. La plage de Saleccia présente par contre des variations saisonnières plus marquées dans le cas des filières REP que dans cette analyse-ci.
+
+-   Les plages de type Alisu et Barcaghju, où les déchets du **secteur d'activité du tabac** sont présent en plus faible proportion **toute l'année**. Sur ces plages, la proportion de déchets des secteurs d'alimentation, de chasse et d'armement et de bâtiment est au contraire en proportion plus importante que les autres plages types.
+
+-   Les plages de type Ferringule, Petracurbara et Macinaghju présentent une **variation saisonnière** de leur composition en macrodéchets classifiés selon les secteurs d'activité. Les saisons de l'**été** et de l'**automne** sont caractérisées par une proportion de déchets du secteur du tabac plus important que l'**hiver** et le **printemps**.
+
+Bien que d'importance moindre, la dispersion des sites-saison au sein de la période hiver-printemps est caractérisée par d'autres types de déchets provenant des secteurs du bâtiment, de la pêche, des emballages et colis, des cosmétiques.
+
+# DCSMM
+
+Cette partie de l'analyse ne prend en compte que la classification des macrodéchets par la catégorisation définie par le protocole de la **DCSMM** (Directive Cadre Stratégie pour le Milieu Marin). Les étapes sont les mêmes que les analyses précédentes.
+
+Voici tous les catégories DCSMM pour lesquels au moins un macrodéchet a été collecté sur l'ensemble des campagnes ainsi que le nombre total d'objets toutes campagnes confondues par 100 m de linéaire côtier :
+
+```{r}
+macrodechets_selection(macrodechets_counts, "DCSMM") %>%
+  colSums() %>%
+  tibble(`DCSMM` = names(.), `Total d'objets / 100m` = .) %>%
+  mutate(`Total d'objets / 100m` = as.numeric(format(round(`Total d'objets / 100m`, 2), scientific = FALSE))) %>%
+  arrange(desc(`Total d'objets / 100m`)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE,
+                position = "left") %>%
+  row_spec(0, bold = TRUE) %>%
+  scroll_box(height = "500px")
+
+```
+
+\
+Le nombre de catégories est beaucoup plus important que dans le cas des analyses précédentes. Cette catégorisation de la DCSMM est plus précise bien, qu'une grande majorité des objets appartient à des catégories assez générales tel que les **fragments** divers ou les bouchons. Néanmoins la catégorisation est plus complète que les analyses précédentes puisque ces dernières présentaient des catégories indéterminées ou vide éliminant beaucoup de déchets.
+
+## Représentations interactives des catégories d'intérêt
+
+Les catégories **DCSMM d'intérêt sélectionnées** pour les représentations interactives sont :
+
+-   Alimentation
+
+-   Bouchons et couvercles de bouteille
+
+-   Bouchons et couvercles non alimentaire
+
+-   Bouteilles en plastique alimentaire inférieures à 0,5 l
+
+-   Bouteilles en plastique alimentaire supérieures à 0,5 l
+
+-   Bouteilles et contenants produit de nettoyage
+
+-   Cartouches et bourre de chasse
+
+-   Contenants alimentaire en polystyrène
+
+-   Emballages alimentaires
+
+-   Emballages alimentaires autres
+
+-   Emballages non-alimentaires identifiés
+
+-   Emballages sucreries et chips
+
+-   Fragments de polystyrène
+
+-   Fragments de polystyrène supérieurs à 50 cm
+
+-   Fragments de polystyrène 0 - 2,5 cm
+
+-   Fragments de polystyrène 2,5 - 50 cm
+
+-   Lingettes jetables
+
+```{r}
+macrodechets_counts_dcsmm <- macrodechets_counts %>%
+  filter(categorie_sub == "DCSMM") %>%
+  filter(categorie_specifique %in% c(
+    "Bouchons et couvercles de bouteille",
+    "Bouchons et couvercles non alimentaire",
+    "Bouteilles en plastique alimentaire inférieures à 0,5 l",             
+    "Bouteilles en plastique alimentaire supérieures à 0,5 l",
+    "Bouteilles et contenants produit de nettoyage",
+    "Cartouches et bourre de chasse",
+    "Contenants alimentaire en polystyrène",
+    "Emballages alimentaires",
+    "Emballages alimentaires autres",
+    "Emballages non-alimentaires identifiés",
+    "Emballages sucreries et chips",
+    "Fragments de polystyrène",
+    "Fragments de polystyrène  supérieurs à 50 cm",                         
+    "Fragments de polystyrène 0 - 2,5 cm",                                  
+    "Fragments de polystyrène 2,5 - 50 cm",
+    "Lingettes jetables"
+  ))
+```
+
+La première représentation interactive permet de visualiser les données de **DCSMM par site** :
+
+```{r}
+
+#| fig-height: 20
+
+t1 <- macrodechets_counts_dcsmm %>%
+  select(site, date, categorie_specifique, valeur_100m) %>%
+  pivot_wider(names_from = categorie_specifique, values_from = valeur_100m) %>%
+  group_by(site)
+
+t1 %>%
+  e_charts(date, timeline = TRUE) %>%
+  e_bar(serie = `Bouchons et couvercles de bouteille`, name = "Bouchons et couvercles de bouteille") %>%
+  e_bar(serie = `Bouchons et couvercles non alimentaire`, name = "Bouchons et couvercles non alimentaire") %>%
+  e_bar(serie = `Bouteilles en plastique alimentaire inférieures à 0,5 l`, name = "Bouteilles en plastique alimentaire inférieures à 0,5 l") %>%
+  e_bar(serie = `Bouteilles en plastique alimentaire supérieures à 0,5 l`, name = "Bouteilles en plastique alimentaire supérieures à 0,5 l") %>%
+  e_bar(serie = `Bouteilles et contenants produit de nettoyage`, name = "Bouteilles et contenants produit de nettoyage") %>%
+  e_bar(serie = `Cartouches et bourre de chasse`, name = "Cartouches et bourre de chasse") %>%
+  e_bar(serie = `Contenants alimentaire en polystyrène`, name = "Contenants alimentaire en polystyrène") %>%
+  e_bar(serie = `Emballages alimentaires`, name = "Emballages alimentaires") %>%
+  e_bar(serie = `Emballages alimentaires autres`, name = "Emballages alimentaires autres") %>%
+  e_bar(serie = `Emballages non-alimentaires identifiés`, name = "Emballages non-alimentaires identifiés") %>%
+  e_bar(serie = `Emballages sucreries et chips`, name = "Emballages sucreries et chips") %>%
+  e_bar(serie = `Fragments de polystyrène`, name = "Fragments de polystyrène") %>%
+  e_bar(serie = `Fragments de polystyrène  supérieurs à 50 cm`, name = "Fragments de polystyrène  supérieurs à 50 cm") %>%
+  e_bar(serie = `Fragments de polystyrène 0 - 2,5 cm`, name = "Fragments de polystyrène 0 - 2,5 cm") %>%
+  e_bar(serie = `Fragments de polystyrène 2,5 - 50 cm`, name = "Fragments de polystyrène 2,5 - 50 cm") %>%
+  e_bar(serie = `Lingettes jetables`, name = "Lingettes jetables") %>%
+  e_tooltip(trigger = "item") %>%
+  e_x_axis(type = "time", splitLine = list(show = TRUE)) %>%
+  e_y_axis(name = "Nombre d'objets") %>%
+  e_title("Macrodéchets par site - DCSMM") %>%
+  e_axis_labels(x = "date", y = "Objets/100m linéaire côtier") %>%
+  e_legend(orient = "horizontal", top = "8%", right = "10%", left = "10%") %>%
+  e_datazoom(
+    x_index = 0, 
+    type = "slider",
+    bottom = "10%"  # Adjust the position of the datazoom slider
+  ) %>%
+  e_timeline_opts(
+    bottom = "0%"  # Adjust the bottom so the timeline is visible
+  ) %>%
+  e_grid(
+    top = "10%",   # Space for title
+    left = "5%",  # Space for y-axis label
+    right = "5%", # Space for the legend
+    bottom = "20%" # Space for timeline and datazoom
+  ) %>%
+  e_theme("vintage")
+```
+
+\
+\
+La seconde représentation interactive permet de visualiser les données **par catégorie** :\
+\
+
+```{r}
+#| fig-height: 15
+
+t2 <- macrodechets_counts_dcsmm %>%
+  select(site, date, categorie_specifique, valeur_100m) %>%
+  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>%  # Create Year-Month column
+  pivot_wider(names_from = site, values_from = valeur_100m) %>%
+  group_by(categorie_specifique)
+
+t2 %>%
+  e_charts(YearMonth, timeline = TRUE) %>%
+  e_bar(serie = `Ferringule`, name = "Ferringule") %>%
+  e_bar(serie = `La Roya`, name = "La Roya") %>%
+  e_bar(serie = `Saleccia`, name = "Saleccia") %>%
+  e_bar(serie = `Petracurbara`, name = "Petracurbara") %>%
+  e_bar(serie = `Macinaghju`, name = "Macinaghju") %>%
+  e_bar(serie = `Barcaghju`, name = "Barcaghju") %>%
+  e_bar(serie = `Alisu`, name = "Alisu") %>%
+  e_tooltip(trigger = "item") %>%
+  e_x_axis(type = "category", splitLine = list(show = TRUE)) %>%
+  e_y_axis(name = "Objets/100m linéaire côtier") %>%
+  e_title("Macrodéchets par catégorie - DCSMM") %>%
+  e_legend(
+    orient = "vertical", 
+    right = "5%", # Adjust the right position
+    top = "10%",  # Move it down
+    itemWidth = 20,  # Set legend item size
+    itemHeight = 14,
+    padding = 5
+  ) %>%
+  e_datazoom(
+    x_index = 0, 
+    type = "slider",
+    bottom = "10%"  # Adjust the position of the datazoom slider
+  ) %>%
+  e_timeline_opts(
+    bottom = "0%"  # Adjust the bottom so the timeline is visible
+  ) %>%
+  
+  e_grid(
+    top = "10%",   # Space for title
+    left = "5%",  # Space for y-axis label
+    right = "5%", # Space for the legend
+    bottom = "20%" # Space for timeline and datazoom
+  ) %>%
+  e_theme("vintage")
+```
+
+## ACP
+
+L'**analyse en composantes principales** est utilisée dans ce contexte avec la perspective de trouver des regroupements de sites ou de saisons, permettant de caractériser des plages types définies par les catégories **DCSMM**.
+
+Afin de simplifier l'analyse, toutes les catégories sont exclues pour un nombre total d'objets/100m inférieur à 5.
+
+```{r}
+
+macrodechets_DCSMM <- macrodechets_selection(macrodechets_counts, "DCSMM")
+
+to_remove <- macrodechets_DCSMM %>%
+  colSums() %>%
+  tibble(`DCSMM` = names(.), `Total d'objets / 100m` = .) %>%
+  mutate(`Total d'objets / 100m` = as.numeric(format(round(`Total d'objets / 100m`, 2), scientific = FALSE))) %>%
+  arrange(desc(`Total d'objets / 100m`)) %>% 
+  filter(`Total d'objets / 100m` < 5) %>% 
+  pull(`DCSMM`)
+
+
+macrodechets_DCSMM_hellinger <- macrodechets_DCSMM %>%
+  as.data.frame() %>%
+  select(-all_of(to_remove)) %>%
+  vegan::decostand(., method = "hellinger")
+
+macrodechets_DCSMM_habillage <- macrodechets_habillage(macrodechets_counts, "DCSMM")
+
+```
+
+Les données de dénombrement sont **transformées par méthode d'Hellinger** et ensuite utilisées pour le calcul de l'ACP. L'ACP permet d'obtenir les nouvelles coordonnées des unités d'échantillonnage site-saison dans les nouvelles dimensions pour lesquelles la variance est la plus représentative des différents sites.
+
+L’ACP calculée, la première étape qui suit consiste à **choisir le nombre de dimensions** (donc le nombre d’axes de l'espace de représentation final) le plus adapté :
+
+```{r}
+DCSMM_pca <- prcomp(macrodechets_DCSMM_hellinger, center = TRUE, scale. =  FALSE)
+fviz_eig(DCSMM_pca)
+summary(DCSMM_pca)
+```
+
+Parmi les nouvelles dimensions calculées de l’ACP, la **dimension 1 (PC1)** explique **26%** de la variance totale. La **dimension 2 (PC2)** explique **12%** de la variance totale, ce qui représente une **proportion cumulée** de **38%** en choisissant deux dimensions. La **dimension 3 (PC3)** explique **10%** de la variance totale, avec une proportion cumulée de **48%** de la variance totale en choisissant les 3 premières dimensions. Pour choisir pertinemment le nombre d'axes, voici le résultat de l'**analyse parallèle de Horn** sur 30 000 itérations :
+
+```{r}
+paran::paran(macrodechets_DCSMM_hellinger, 
+             iterations = 30000,
+             quietly = FALSE,
+             status = FALSE, 
+             all = FALSE, 
+             cfa = FALSE, 
+             graph = TRUE,
+             color = FALSE, 
+             col = c("black","red","blue"),
+             lty = c(1,2,3), 
+             lwd = 1, 
+             legend = TRUE, 
+             file = "",
+             width = 640,
+             height = 640, 
+             grdevice = "png", 
+             seed = 0, 
+             mat = NA, 
+             n = NA)
+```
+
+Le nombre de dimensions idéal à conserver correspond au nombre de points dont la valeur propre ajustée (*Adjusted Ev*) est supérieur au seuil. Ici ces points correspondent aux points noirs sur la ligne continue (*Adjusted Ev retained*). Le nombre de dimensions significatives est supérieure à 4. Néanmoins un deuxième saut de variance est visible entre la 4 ème et la 5 ème dimension. Pour éviter de conserver trop de dimensions, nous choisissons de retenir **4 dimensions**.
+
+Maintenant que les 4 premiers axes sont retenus, il est important de savoir si l’on peut **statistiquement regrouper les combinaisons site-saison en groupes distincts**. Voici donc la valeur de la statistique d'**Hopkins** pour les données site-saison utilisant les deux dimensions conservées :
+
+```{r}
+hopK <- hopkins::hopkins(DCSMM_pca$x[, 1:4])
+hopK
+```
+
+A partir de cette statistique, il est possible de calculer une p-value permettant d’inférer la possibilité de partitionnement :
+
+```{r}
+hopkins::hopkins.pval(hopK, dim(macrodechets_DCSMM_hellinger)[1])
+```
+
+La p-value de la statistique d’Hopkins est inférieure au seuil choisi de 5% (i.e. 0.05). Il est donc **raisonnable** de mener un **partitionnement des données**, permettant de distinguer des groupes site-saison distincts.
+
+```{r}
+fviz_nbclust(DCSMM_pca$x[, c(1:4)], FUNcluster = kmeans, k.max = 10) 
+```
+
+Au vu de cette représentation, le **nombre de clusters idéal est de cinq**. Ainsi, le partitionnement est choisi pour obtenir cinq groupes de sites-saisons.
+
+-   Les 10 variables contribuant le plus à la **première dimension** sont :
+
+```{r}
+fviz_contrib(DCSMM_pca, "var", axes = 1, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+-   Les 10 variables contribuant le plus à la **seconde dimension** sont :
+
+```{r}
+fviz_contrib(DCSMM_pca, "var", axes = 2, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+-   Les 10 variables contribuant le plus à la **troisième dimension** sont :
+
+```{r}
+fviz_contrib(DCSMM_pca, "var", axes = 3, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+-   Les 10 variables contribuant le plus à la **quatrième dimension** sont :
+
+```{r}
+fviz_contrib(DCSMM_pca, "var", axes = 4, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+De la même manière que les analyses des autres catégorisations de macrodéchets, ces représentations permettent d'évaluer la contribution des variables à chaque dimension de l'ACP. Au vu des contributions relatives, il semble pertinent de retenir à chaque fois les 5 à 6 premières variables.
+
+### Dimensions 1 & 2
+
+La figure suivante permet de représenter les **contributions des variables** dans le plan de projection défini par les axes 1 et 2 (dimensions 1 et 2) de l'ACP en conservant les secteurs sélectionnés :
+
+```{r}
+fviz_pca_var(DCSMM_pca, axes = c(1, 2), repel = TRUE, col.var = "contrib", select.var = list(contrib = 9)) +
+  scale_color_gradient2(low = "white", mid = "blue", high = "red", midpoint = 10, space = "Lab") +
+  theme(legend.position = 'bottom')
+```
+
+Voici donc maintenant la **représentation** dans le plan de projection dans les deux premières dimensions des sites-saison regroupés par **partitionnement des k-moyennes** :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10   
+
+clustering_pca <- eclust(DCSMM_pca$x[, 1:4], "kmeans", hc_metric = "eucliden", k = 5, graph = FALSE)
+
+fviz_pca_ind(DCSMM_pca, axes = c(1, 2), habillage = clustering_pca$cluster,
+             addEllipses = TRUE, ellipse.level = 0.7, repel = TRUE)
+
+```
+
+L'axe 1 distingue globalement 3 grands rassemblement de groupes (clusters).
+
+Le **cluster bleu** (n°4) est très distinct des autres sur cette dimension n°1. Il est caractérisé par des **fragments de plastiques de tailles variables** n'appartenant pas à la catégorie fragments de plastiques durs. La variable mégot explique aussi l'emplacement de ce cluster dans le plan de projection.
+
+Les **clusters rouges (n°1) et jaune (n°2)** sont eux caractéristiques de sites ayant une proportion plus importante de **fragments plastiques durs** que les autres. En considérant les faibles variations d'emplacement des sites-saisons sur la dimension 2, le cluster rouge n°1 contient probablement plus de plastiques durs de grande taille (entre 2.5 cm et 50 cm), à l'inverse du cluster jaune n°2 qui est plus caractéristique de sites-saisons composés de fragments de plastiques dur entre 0 et 2.5 cm.
+
+Finalement les **clusters vert (n°3) et violet (n°5)** correspondent à une **situation intermédiaire** peu distinguable par l'axe 1. Les centroïdes des deux clusters sont par contre situés plus en bas dans la projection, caractérisés par moins de mégots mais plus de bouchons et couvercles de bouteilles ou bien non alimentaire.
+
+La représentation des sites-saisons avec des **couleurs différentes pour chaque site** (donc indépendamment de la saison) fait ressortir des différences propres aux sites :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(1, 2),
+                DCSMM_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 10),
+                habillage = macrodechets_DCSMM_habillage[["site"]]) 
+
+```
+
+Seuls les sites **La Roya** et **Alisu** sont bien distincts dans ce plan de projection. Le site de **La Roya** est caractérisé par une plus forte composition en mégots par rapport aux autres sites-saison, tandis que le site de l'**Alisu** est lui caractérisé par une composition plus importante en fragments de plastiques durs de 2.5 à 50 cm. Dans cette projection des dimensions 1 et 2, la distinction des autres sites est moins précise. Le site de **Macinaghju** est lui plutôt situé à droite du plan de projection, sauf pour le mois de novembre 2022. Ainsi, il est constitué de manière générale de fragments de plastiques durs de petite taille (0 à 2.5 cm) ou de taille moyenne (2.5 à 50 cm) et moins de mégots.
+
+### Dimensions 2 & 3
+
+Réalisons donc le même processus pour les dimensions 2 & 3 :
+
+```{r}
+fviz_pca_var(DCSMM_pca, axes = c(2, 3), repel = TRUE, col.var = "contrib", select.var = list(contrib = 10)) +
+  scale_color_gradient2(low = "white", mid = "blue", high = "red", midpoint = 7, space = "Lab") +
+  theme(legend.position = 'bottom')
+```
+
+La proportion de variance de ces deux dimensions est plus faible que la dimension 1. La proportion de variance de la dimension 2 est de 12% et la proportion de variance de la dimension 3 est de 10%. Ce plan de projection présente une **distinction plus nette** des groupes par l'opposition des **fragments de plastique dur de petite taille** (0 à 2.5 cm) en haut à droite du plan aux **fragments de plastique dur de taille plus grande** (2.5 à 50 cm) en bas à gauche de ce plan de projection.
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10   
+
+clustering_pca <- eclust(DCSMM_pca$x[, 1:4], "kmeans", hc_metric = "eucliden", k = 5, graph = FALSE)
+
+fviz_pca_ind(DCSMM_pca, axes = c(2, 3), habillage = clustering_pca$cluster,
+             addEllipses = TRUE, ellipse.level = 0.7, repel = TRUE)
+
+```
+
+La projection des groupes dans ce plan entraîne une distinction moins nette clusters rouge (1), bleu (4) et jaune (2) entre eux en comparaison d'un projection incluant la dimension 1. Par contre, les clusters **vert** (3) et **violet** (5) sont ici beaucoup plus **distincts** les uns des autres que dans la projection des sites-saisons dans les dimensions 1 & 2. Ces deux groupes ont une proportion moindre de fragments de plastique dur entre 0 et 2.5 cm que les autres groupes. En dehors du cas du site de **La Roya** caractérisé par plus de mégots, les sites-saisons du cluster vert semblent avoir une proportion de fragments de films plastiques et de cordage et ficelle plus importante que le cluster violet. Ce dernier présente une plus grande proportion de sites-saisons où ont été retrouvés des bouchons, qu'ils soient du secteur alimentaire ou non.
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(2, 3),
+                DCSMM_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 10),
+                habillage = macrodechets_DCSMM_habillage[["site"]]) 
+
+```
+
+Ici, l'**Alisu** se distingue de **La Roya** par peu de mégots mais plus de bouchons et de couvercle. En comparaison à la projection dans les dimensions 1 & 2, l'**Alisu** est moins caractérisé par la présence particulière de fragments de plastiques durs, quelque soit la taille.
+
+### Dimensions 3 & 4
+
+Même processus pour les dimensions 3 & 4 :
+
+```{r}
+fviz_pca_var(DCSMM_pca, axes = c(3, 4), repel = TRUE, col.var = "contrib", select.var = list(contrib = 8)) +
+  scale_color_gradient2(low = "white", mid = "blue", high = "red", midpoint = 10, space = "Lab") +
+  theme(legend.position = 'bottom')
+```
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10   
+
+clustering_pca <- eclust(DCSMM_pca$x[, 1:4], "kmeans", hc_metric = "eucliden", k = 5, graph = FALSE)
+
+fviz_pca_ind(DCSMM_pca, axes = c(3, 4), habillage = clustering_pca$cluster,
+             addEllipses = TRUE, ellipse.level = 0.7, repel = TRUE)
+
+```
+
+Peu de distinctions pertinentes sont visibles dans ce plan de projection entre groupes de sites-saison, à part pour le cluster vert, présentant plus de mégots et de fragments de plastique dur de taille intermédiaire que les autres clusters.
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(3, 4),
+                DCSMM_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 10),
+                habillage = macrodechets_DCSMM_habillage[["site"]]) 
+
+```
+
+La représentation par site montre à nouveau la forte proportion de mégots au site de **La Roya** en opposition aux sites de l'**Alisu** et de **Macinaghju**. Le site de **Barcaghju** semble lui aussi être composé de moins de mégots mais de plus de fragments de plastique.
+
+## Points-clés
+
+Au vu de tous ces éléments incluant la classification des macrodéchets par la **DCSMM**, il est possible de faire des distinctions entre les groupes et sites mais qui sont moins évidentes que les deux analyses précédentes dû à la plus grande diversité de catégories considérées :
+
+-   Dans toutes les projections, le site de **La Roya** se distingue des autres par la présence constante de **mégots** toute l'année. Ceci coïncide avec les analyses de catégorisation par filière REP et par secteurs d'activité, mettant en avant une catégorisation des déchets du tabac plus importante à ce site.
+
+-   Les sites **Macinaghju** et **Alisu** sont eux à l'opposé du site de la Roya, *i.e.* ont une proportion de mégots plus faible. Ces deux sites se distinguent par contre entre eux par une composition en déchets un peu différente. Le site de l'**Alisu** est plus riche en fragments de plastiques dur de taille intermédiaire (2.5 à 50 cm) et en bouchons et couvercles variés, à l'inverse du site de **Macinaghju** caractérisé par des fragments de plastique dur plus petits (0 à 2.5 cm) et peu de bouchons.
+
+-   Les autres sites sont plus difficile à distinguer avec cette classification de la **DCSMM**. Le site de **Petracurbara** semble caractérisé par la présence de fragments de plastique dur de toute taille, et de moindre mesure en mégots. Les autres sites ne se distinguent pas particulièrement des autres dans le plan à 4 dimensions retenu.
+
+-   De manière globale, les catégories **DCSMM** distinguant le plus les regroupements de sites-saison sont les **mégots**, les **fragments plastiques dur** petits (0 à 2.5 cm) ou grands (2.5 à 50 cm), les **fragments de plastique simples** avec la même distinction de taille et les **bouchons et couvercles** ou les opercules associés, qu'ils soient alimentaires ou non.
+
+# Groupes zéro déchet sauvage
+
+Cette partie de l'analyse ne prend en compte que la classification des macrodéchets par la catégorisation en **groupes de déchets indicateurs** définies par la plateforme Zéro Déchet Sauvage. Les étapes sont les mêmes que les analyses précédentes.
+
+Voici tous les catégories groupe pour lesquels au moins un macrodéchet a été collecté sur l'ensemble des campagnes ainsi que le nombre total d'objets toutes campagnes confondues par 100m de linéaire côtier :
+
+```{r}
+macrodechets_selection(macrodechets_counts, "groupe") %>%
+  colSums() %>%
+  tibble(`Groupe Zero Dechet Sauvage` = names(.), `Total d'objets / 100m` = .) %>%
+  mutate(`Total d'objets / 100m` = as.numeric(format(round(`Total d'objets / 100m`, 2), scientific = FALSE))) %>%
+  arrange(desc(`Total d'objets / 100m`)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE,
+                position = "left") %>%
+  row_spec(0, bold = TRUE) %>%
+  scroll_box(height = "500px")
+
+```
+
+\
+Le nombre de catégories est moindre que la DCSMM mais plus importante que les secteurs d'activité et les filières REP. Cette catégorisation en groupe est assez précise, bien qu'une grande majorité des objets appartient à la catégorisation en **fragments plastique non-identifiés**. Cette catégorie n'apportant pas beaucoup d'informations quant à la distinction des sites, elle n'est **pas prise en compte** dans les analyses.
+
+## Représentations interactives des catégories d'intérêt
+
+Les catégories de **groupes d'intérêt sélectionnés** pour les représentations interactives sont :
+
+-   Les bâtons de sucette
+
+-   Les cotons-tiges
+
+-   Les cotons-tiges en carton
+
+-   Les médias filtrants
+
+-   Les pailles en plastique
+
+-   Les sacs en plastique
+
+```{r}
+macrodechets_counts_group <- macrodechets_counts %>%
+  filter(categorie_sub == "groupe") %>%
+  filter( categorie_specifique %in% c(
+    "Bâtons de sucette", 
+    "Cotons-tiges",
+    "Cotons-tiges en carton",
+    "Médias filtrants", 
+    "Pailles en plastique", 
+    "Sacs plastique"
+  ))
+```
+
+La première représentation interactive permet de visualiser les données de **groupe par site** :
+
+```{r}
+
+#| fig-height: 20
+
+t1 <- macrodechets_counts_group %>%
+  select(site, date, categorie_specifique, valeur_100m) %>%
+  pivot_wider(names_from = categorie_specifique, values_from = valeur_100m) %>%
+  group_by(site)
+
+
+t1 %>%
+  e_charts(date, timeline = TRUE) %>%
+  e_bar(serie = `Bâtons de sucette`, name = "Bâtons de sucette") %>%
+  e_bar(serie = `Cotons-tiges`, name = "Cotons-tiges") %>%
+  e_bar(serie = `Cotons-tiges en carton`, name = "Cotons-tiges en carton") %>%
+  e_bar(serie = `Médias filtrants`, name = "Médias filtrants") %>%
+  e_bar(serie = `Pailles en plastique`, name = "Pailles en plastique") %>%
+  e_bar(serie = `Sacs plastique`, name = "Sacs plastique") %>%
+  e_tooltip(trigger = "item") %>%
+  e_x_axis(type = "time", splitLine = list(show = TRUE)) %>%
+  e_y_axis(name = "Nombre d'objets") %>%
+  e_title("Macrodéchets par site - groupes Zéro déchets sauvages") %>%
+  e_axis_labels(x = "date", y = "Objets/100m linéaire côtier") %>%
+  e_legend(orient = "horizontal", top = "8%", right = "10%", left = "10%") %>%
+  e_datazoom(
+    x_index = 0, 
+    type = "slider",
+    bottom = "10%"  # Adjust the position of the datazoom slider
+  ) %>%
+  e_timeline_opts(
+    bottom = "0%"  # Adjust the bottom so the timeline is visible
+  ) %>%
+  e_grid(
+    top = "10%",   # Space for title
+    left = "5%",  # Space for y-axis label
+    right = "5%", # Space for the legend
+    bottom = "20%" # Space for timeline and datazoom
+  ) %>%
+  e_theme("vintage")
+```
+
+\
+\
+La seconde représentation interactive permet de visualiser les données **par catégorie** :\
+\
+
+```{r}
+#| fig-height: 15
+
+t2 <- macrodechets_counts_group %>%
+  select(site, date, categorie_specifique, valeur_100m) %>%
+  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>%  
+  pivot_wider(names_from = site, values_from = valeur_100m) %>%
+  group_by(categorie_specifique)
+
+t2 %>%
+  e_charts(YearMonth, timeline = TRUE) %>%
+  e_bar(serie = `Ferringule`, name = "Ferringule") %>%
+  e_bar(serie = `La Roya`, name = "La Roya") %>%
+  e_bar(serie = `Saleccia`, name = "Saleccia") %>%
+  e_bar(serie = `Petracurbara`, name = "Petracurbara") %>%
+  e_bar(serie = `Macinaghju`, name = "Macinaghju") %>%
+  e_bar(serie = `Barcaghju`, name = "Barcaghju") %>%
+  e_bar(serie = `Alisu`, name = "Alisu") %>%
+  e_tooltip(trigger = "item") %>%
+  e_x_axis(type = "category", splitLine = list(show = TRUE)) %>%
+  e_y_axis(name = "Objets/100m linéaire côtier") %>%
+  e_title("Macrodéchets par catégories - groupes Zéro déchets sauvages") %>%
+  e_legend(
+    orient = "vertical", 
+    right = "5%", # Adjust the right position
+    top = "10%",  # Move it down
+    itemWidth = 20,  # Set legend item size
+    itemHeight = 14,
+    padding = 5
+  ) %>%
+  e_datazoom(
+    x_index = 0, 
+    type = "slider",
+    bottom = "10%"  # Adjust the position of the datazoom slider
+  ) %>%
+  e_timeline_opts(
+    bottom = "0%"  # Adjust the bottom so the timeline is visible
+  ) %>%
+  e_grid(
+    top = "10%",   # Space for title
+    left = "5%",  # Space for y-axis label
+    right = "5%", # Space for the legend
+    bottom = "20%" # Space for timeline and datazoom
+  ) %>%
+  e_theme("vintage")
+```
+
+## ACP
+
+L'**analyse en composantes principales** est utilisée dans ce contexte avec la perspective de trouver des regroupements de sites ou de saisons, permettant de caractériser des plages types définies par les catégories en **groupes zéro déchet sauvage**.
+
+```{r}
+
+macrodechets_groupe <- macrodechets_selection(macrodechets_counts, "groupe", categorie_removal = c("Fragments plastique non-identifiés"))
+
+to_remove <- macrodechets_groupe %>%
+  colSums() %>%
+  tibble(`groupe` = names(.), `Total d'objets / 100m` = .) %>%
+  mutate(`Total d'objets / 100m` = as.numeric(format(round(`Total d'objets / 100m`, 2), scientific = FALSE))) %>%
+  arrange(desc(`Total d'objets / 100m`)) %>% 
+  filter(`Total d'objets / 100m` < 0.2) %>% 
+  pull(`groupe`)
+
+
+macrodechets_groupe_hellinger <- macrodechets_groupe %>%
+  as.data.frame() %>%
+  select(-all_of(to_remove)) %>%
+  vegan::decostand(., method = "hellinger")
+
+macrodechets_groupe_habillage <- macrodechets_habillage(macrodechets_counts, "groupe")
+
+```
+
+Les données de dénombrement sont **transformées par méthode d'Hellinger** et ensuite utilisées pour le calcul de l'ACP.
+
+L’ACP calculée, la première étape qui suit consiste à **choisir le nombre de dimensions** (donc le nombre d’axes de l'espace de représentation final) le plus adapté :
+
+```{r}
+groupe_pca <- prcomp(macrodechets_groupe_hellinger, center = TRUE, scale. =  FALSE)
+fviz_eig(groupe_pca)
+summary(groupe_pca)
+```
+
+Parmi les nouvelles dimensions calculées de l’ACP, la **dimension 1 (PC1)** explique **20%** de la variance totale. La **dimension 2 (PC2)** explique **10%** de la variance totale, ce qui représente une **proportion cumulée** de **30%** en choisissant deux dimensions. La **dimension 3 (PC3)** explique **7%** de la variance totale, avec une proportion cumulée de **37%** de la variance totale en choisissant les 3 premières dimensions. Pour choisir pertinemment le nombre d'axes, voici le résultat de l'**analyse parallèle de Horn** sur 30 000 itérations :
+
+```{r}
+paran::paran(macrodechets_groupe_hellinger, 
+             iterations = 30000,
+             quietly = FALSE,
+             status = FALSE, 
+             all = FALSE, 
+             cfa = FALSE, 
+             graph = TRUE,
+             color = FALSE, 
+             col = c("black","red","blue"),
+             lty = c(1,2,3), 
+             lwd = 1, 
+             legend = TRUE, 
+             file = "",
+             width = 640,
+             height = 640, 
+             grdevice = "png", 
+             seed = 0, 
+             mat = NA, 
+             n = NA)
+```
+
+Le nombre de dimensions idéal à conserver correspond au nombre de points dont la valeur propre ajustée (*Adjusted Ev*) est supérieur au seuil. Ici ces points correspondent aux points noirs sur la ligne continue (*Adjusted Ev retained*). Le nombre de dimensions significatives est supérieure à 4. Néanmoins au vu de l'apport de pourcentage de variance à chaque dimension supplémentaire sur la représentation précédente et celle-ci, **3 dimensions sont conservées**.
+
+Maintenant que les 3 premiers axes sont retenus, il est important de savoir si l’on peut **statistiquement regrouper les combinaisons site-saison en groupes distincts**. Voici donc la valeur de la statistique d'**Hopkins** pour les données site-saison utilisant les deux dimensions conservées :
+
+```{r}
+hopK <- hopkins::hopkins(groupe_pca$x[, 1:3], m = ceiling(nrow(groupe_pca$x[, 1:3])/5))
+hopK
+```
+
+A partir de cette statistique, il est possible de calculer une p-value permettant d’inférer la possibilité de partitionnement :
+
+```{r}
+hopkins::hopkins.pval(hopK, dim(macrodechets_groupe_hellinger)[1])
+```
+
+La p-value de la statistique d’Hopkins est inférieure au seuil choisi de 5% (i.e. 0.05). Il est donc **raisonnable** de mener un **partitionnement des données**, permettant de distinguer des groupes site-saison distincts.
+
+```{r}
+fviz_nbclust(groupe_pca$x[, c(1:3)], FUNcluster = kmeans, k.max = 10) 
+```
+
+Au vu de cette représentation, le **nombre de clusters idéal est de deux**. Ainsi, le partitionnement est choisi pour obtenir deux groupes de sites-saisons.
+
+-   Les 10 variables contribuant le plus à la **première dimension** sont :
+
+```{r}
+fviz_contrib(groupe_pca, "var", axes = 1, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+-   Les 10 variables contribuant le plus à la **seconde dimension** sont :
+
+```{r}
+fviz_contrib(groupe_pca, "var", axes = 2, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+-   Les 10 variables contribuant le plus à la **troisième dimension** sont :
+
+```{r}
+fviz_contrib(groupe_pca, "var", axes = 3, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+De la même manière que les analyses des autres catégorisations de macrodéchets, ces représentations permettent d'évaluer la contribution des variables à chaque dimension de l'ACP. Au vu des contributions relatives, il semble pertinent de retenir à chaque fois les 2 à 6 premières variables selon la dimension considérée.
+
+### Dimensions 1 & 2
+
+La figure suivante permet de représenter les **contributions des variables** dans le plan de projection défini par les axes 1 et 2 (dimensions 1 et 2) de l'ACP en conservant les secteurs sélectionnés :
+
+```{r}
+fviz_pca_var(groupe_pca, axes = c(1, 2), repel = TRUE, col.var = "contrib", select.var = list(contrib = 8)) +
+  scale_color_gradient2(low = "white", mid = "blue", high = "red", midpoint = 10, space = "Lab") +
+  theme(legend.position = 'bottom')
+```
+
+Voici donc maintenant la **représentation** dans le plan de projection dans les deux premières dimensions des sites-saison regroupés par **partitionnement des k-moyennes** :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10   
+
+clustering_pca <- eclust(groupe_pca$x[, 1:3], "kmeans", hc_metric = "eucliden", k = 2, graph = FALSE)
+
+fviz_pca_ind(groupe_pca, axes = c(1, 2), habillage = clustering_pca$cluster,
+             addEllipses = TRUE, ellipse.level = 0.7, repel = TRUE)
+
+```
+
+Au vu de ces deux dernières figures, le **cluster bleu** n°2 est caractérisé par une composition **plus importante en mégots** que le cluster rouge n°1. La dispersion des sites-saisons selon l'axe 2 est plus importante au sein du cluster rouge que du cluster bleu.
+
+Afin d'affiner l'analyse, les sites-saisons sont représentés avec des **couleurs différentes pour chaque site** :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(1, 2),
+                groupe_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 8),
+                habillage = macrodechets_groupe_habillage[["site"]]) 
+
+```
+
+Les interprétations sont très similaires aux analyses précédentes. Le site de **La Roya** est caractérisé par un nombre plus important de **mégots** à l'inverse du site de l'Alisu. Le site de l'**Alisu**, ainsi que celui de **Ferringule** de moindre mesure, sont plus riches en bouchons et opercules de bouchons que les autres sites.
+
+La représentation en **couleurs par saisons** permet d'affiner l'effet de la saisonnalité :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(1, 2),
+                groupe_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 8),
+                habillage = macrodechets_groupe_habillage[["saison"]]) 
+
+```
+
+Les saisons d'**hiver** et de **printemps** sont plutôt caractéristiques de plages dont l'abondance en **mégots est plus faible** que l'**été** où la pollution par les mégots est plus importante. L'**automne** est une saison intermédiaire où la **variabilité** en composition en **mégots est grande**.
+
+### Dimensions 2 & 3
+
+Réalisons donc le même processus pour les **dimensions 2 & 3** :
+
+```{r}
+fviz_pca_var(groupe_pca, axes = c(2, 3), repel = TRUE, col.var = "contrib", select.var = list(contrib = 10)) +
+  scale_color_gradient2(low = "white", mid = "blue", high = "red", midpoint = 7, space = "Lab") +
+  theme(legend.position = 'bottom')
+```
+
+Dans ce plan de projection, les mégots ont une moindre importance, tandis que d'autres variables moins souvent rencontrées sont mise en valeur tels que les **cotons-tiges** et les **bouteilles en plastique alimentaire**.
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10   
+
+clustering_pca <- eclust(groupe_pca$x[, 1:3], "kmeans", hc_metric = "eucliden", k = 2, graph = FALSE)
+
+fviz_pca_ind(groupe_pca, axes = c(2, 3), habillage = clustering_pca$cluster,
+             addEllipses = TRUE, ellipse.level = 0.7, repel = TRUE)
+
+```
+
+Dans ce plan de projection des dimensions 2 et 3, les deux clusters ne se distinguent que peu entre eux à part en considérant la **dispersion des sites-saisons** au sein de chacun. Le cluster rouge présente une diversité de composition d'autres macrodéchets plus importante que les sites-saison appartenant au cluster bleu.
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(2, 3),
+                groupe_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 10),
+                habillage = macrodechets_groupe_habillage[["site"]]) 
+
+```
+
+La distinction par site révèle une composition plus importante en anneaux et opercules de bouchons ainsi qu'en bouchons pour les sites de **Ferringule** et de l'**Alisu**. Le site de **Barcaghju** est lui à l'opposé du plan par rapport à la dimension 2. Il est ainsi caractérisé par plus de **matériaux de construction**, de **déchets de colis** et d'emballages industriels et de **bouteilles** en plastique alimentaire. La distinction par la dimension 3 ne semble pas caractériser des sites particuliers bien que les cotons-tiges correspondent à la variable ayant la contribution relative la plus importante dans ce plan de projection.
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(2, 3),
+                groupe_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 10),
+                habillage = macrodechets_groupe_habillage[["saison"]]) 
+
+```
+
+Il n'y a pas de structuration par saison pour ce plan de projection. Ainsi les différences pourraient s'expliquer par d'autres variables telles que les conditions météorologiques ou les courants considérés à chaque période pour chaque condition de plage.
+
+## Points-clés
+
+Au vu de tous ces éléments incluant la classification des macrodéchets par les **groupes zéro déchet sauvage**, il est possible de faire quelques distinctions entre les sites très similaires aux analyses précédentes :
+
+-   Le site de **La Roya** se distingue des autres par la présence constante de **mégots** toute l'année. Ceci coïncide avec les analyses de catégorisation par filière REP, par secteurs d'activité et par catégorisation DCSMM.
+
+-   Les sites **Macinaghju** et **Alisu** sont eux à l'opposé du site de la Roya, i.e. ont une proportion de mégots plus faible, bien que l'Alisu soit plus opposé à La Roya que Macinaghju. Ces deux sites semble se distinguer légèrement dans cette classification par une composition plus importante de cotons-tiges et de bouteilles en plastiques alimentaires que le site de l'Alisu, plus caractérisé par des bouchons ou des anneaux et opercules de bouchons.
+
+-   Les autres sites sont plus difficiles à distinguer avec cette classification en groupes zéro déchets. Leur composition en mégots dépend de la saison. Pour ce qui est des autres variables, **Barcaghju** présente une proportion de matériaux de constructions, de colis et d'emballages et de bouteilles plus importante que **Ferringule** pour lequel la composition est plus riche en bouchons et éléments associés ainsi qu'en emballages alimentaires et mousses synthétiques.
+
+Ainsi les mégots contribuent le plus à distinguer les sites, de la même manière que les catégorisations précédentes. Par contre, quelques autres déchets sont mis en avant dans la distinction des sites-saisons avec cette catégorisation par groupes zéro déchet sauvage qui ne l'étaient pas dans les cas précédents. Néanmoins, cette analyse en composante principale ne permet pas de bien visuellement distinguer des variables explicatives comme la saison ou le site. D'autres paramètres devraient être considérés dans cette situation pour essayer de par exemple expliquer les différences en composition en cotons-tiges.
+
+# Marques
+
+Une dernière catégorisation possible pour ce jeu de données est celle par marques de produits des déchets retrouvés sur les plages. Le nombre d'objets de chaque marque étant très faible, il est pertinent d'utiliser directement une ACP sans présenter les données brutes de manière interactive dès le début.
+
+## Liste des marques
+
+Sans pour autant faire de représentation dynamique spécifique, voici tout de même la liste des marques des déchets retrouvés sur les plages et les abondances associées :
+
+```{r}
+macrodechets_selection(macrodechets_counts, "marque") %>%
+  colSums() %>%
+  tibble(`Marque` = names(.), `Total d'objets / 100m` = .) %>%
+  mutate(`Total d'objets / 100m` = as.numeric(format(round(`Total d'objets / 100m`, 2), scientific = FALSE))) %>%
+  arrange(desc(`Total d'objets / 100m`)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE,
+                position = "left") %>%
+  row_spec(0, bold = TRUE) 
+
+```
+
+## ACP
+
+```{r}
+
+macrodechets_marque <- macrodechets_selection(macrodechets_counts, "marque")
+
+to_remove <- macrodechets_marque %>%
+  colSums() %>%
+  tibble(`marque` = names(.), `Total d'objets / 100m` = .) %>%
+  mutate(`Total d'objets / 100m` = as.numeric(format(round(`Total d'objets / 100m`, 2), scientific = FALSE))) %>%
+  arrange(desc(`Total d'objets / 100m`)) %>% 
+  filter(`Total d'objets / 100m` < 0.2) %>%
+  pull(`marque`)
+
+
+macrodechets_marque_hellinger <- macrodechets_marque %>%
+  as.data.frame() %>%
+  select(-all_of(to_remove)) %>%
+  vegan::decostand(., method = "hellinger")
+
+macrodechets_marque_habillage <- macrodechets_habillage(macrodechets_counts, "marque")
+
+```
+
+Les données de dénombrement sont **transformées par méthode d'Hellinger** et ensuite utilisées pour le calcul de l'ACP.
+
+L’ACP calculée, la première étape qui suit consiste à **choisir le nombre de dimensions** (donc le nombre d’axes de l'espace de représentation final) le plus adapté :
+
+```{r}
+marque_pca <- prcomp(macrodechets_marque_hellinger, center = TRUE, scale. =  FALSE)
+fviz_eig(marque_pca)
+summary(marque_pca)
+```
+
+Parmi les nouvelles dimensions calculées de l’ACP, la **dimension 1 (PC1)** explique **21%** de la variance totale. La **dimension 2 (PC2)** explique **18%** de la variance totale, ce qui représente une **proportion cumulée** de **39%** en choisissant deux dimensions. La **dimension 3 (PC3)** explique **14%** de la variance totale, avec une proportion cumulée de **53%** de la variance totale en choisissant les 3 premières dimensions. Pour choisir pertinemment le nombre d'axes, voici le résultat de l'**analyse parallèle de Horn** sur 30 000 itérations :
+
+```{r}
+paran::paran(macrodechets_marque_hellinger, 
+             iterations = 30000,
+             quietly = FALSE,
+             status = FALSE, 
+             all = FALSE, 
+             cfa = FALSE, 
+             graph = TRUE,
+             color = FALSE, 
+             col = c("black","red","blue"),
+             lty = c(1,2,3), 
+             lwd = 1, 
+             legend = TRUE, 
+             file = "",
+             width = 640,
+             height = 640, 
+             grdevice = "png", 
+             seed = 0, 
+             mat = NA, 
+             n = NA)
+```
+
+Le nombre de dimensions idéal à conserver correspond au nombre de points dont la valeur propre ajustée (*Adjusted Ev*) est supérieur au seuil. Ici ces points correspondent aux points noirs sur la ligne continue (*Adjusted Ev retained*). Le nombre de dimensions significatives est supérieure de 4. Nous conservons donc 4 dimensions.
+
+Maintenant que les 4 premiers axes sont retenus, il est important de savoir si l’on peut **statistiquement remarquer les combinaisons site-saison en marques distincts**. Voici donc la valeur de la statistique d'**Hopkins** pour les données site-saison utilisant les deux dimensions conservées :
+
+```{r}
+hopK <- hopkins::hopkins(marque_pca$x[, 1:4], m = ceiling(nrow(marque_pca$x[, 1:3])/5))
+hopK
+```
+
+A partir de cette statistique, il est possible de calculer une p-value permettant d’inférer la possibilité de partitionnement :
+
+```{r}
+hopkins::hopkins.pval(hopK, dim(macrodechets_marque_hellinger)[1])
+```
+
+La p-value de la statistique d’Hopkins est inférieure au seuil choisi de 5% (i.e. 0.05). Il est donc **raisonnable** de mener un **partitionnement des données**, permettant de distinguer des marques site-saison distincts.
+
+```{r}
+fviz_nbclust(marque_pca$x[, c(1:4)], FUNcluster = kmeans, k.max = 10) 
+```
+
+Au vu de cette représentation, le **nombre de clusters idéal est de huit**. Ainsi, le partitionnement est choisi pour obtenir huit groupes de sites-saisons.
+
+-   Les 10 variables contribuant le plus à la **première dimension** sont :
+
+```{r}
+fviz_contrib(marque_pca, "var", axes = 1, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+-   Les 10 variables contribuant le plus à la **seconde dimension** sont :
+
+```{r}
+fviz_contrib(marque_pca, "var", axes = 2, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+-   Les 10 variables contribuant le plus à la **troisième dimension** sont :
+
+```{r}
+fviz_contrib(marque_pca, "var", axes = 3, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+-   Les 10 variables contribuant le plus à la **quatrième dimension** sont :
+
+```{r}
+fviz_contrib(marque_pca, "var", axes = 4, top = 10, title = "") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +  # Adjust text angle and alignment
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 30))  
+```
+
+De la même manière que les analyses des autres catégorisations de macrodéchets, ces représentations permettent d'évaluer la contribution des variables à chaque dimension de l'ACP. Au vu des contributions relatives, il semble pertinent de retenir à chaque fois les 2 à 3 premières variables selon la dimension considérée.
+
+### Dimensions 1 & 2
+
+La figure suivante permet de représenter les **contributions des variables** dans le plan de projection défini par les axes 1 et 2 (dimensions 1 et 2) de l'ACP en conservant les secteurs sélectionnés :
+
+```{r}
+fviz_pca_var(marque_pca, axes = c(1, 2), repel = TRUE, col.var = "contrib", select.var = list(contrib = 8)) +
+  scale_color_gradient2(low = "white", mid = "blue", high = "red", midpoint = 10, space = "Lab") +
+  theme(legend.position = 'bottom')
+```
+
+Voici donc maintenant la **représentation** dans le plan de projection dans les deux premières dimensions des sites-saison regroupés par **partitionnement des k-moyennes** :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10   
+
+clustering_pca <- eclust(marque_pca$x[, 1:4], "kmeans", hc_metric = "eucliden", k = 8, graph = FALSE)
+
+fviz_pca_ind(marque_pca, axes = c(1, 2), habillage = clustering_pca$cluster,
+             addEllipses = FALSE, ellipse.level = 0.7, repel = TRUE)
+
+```
+
+Les groupes sont ici **très distincts** les uns des autres. La majorité des sites-saisons sont inclus dans le groupe vert clair (n°3) qui n'a pratiquement aucune dispersion dans le plan (seules les étiquettes donnent une impression de dispersion plus grande que la réalité, se fier aux lignes des étiquettes pour plus de précision). Ceci correspond à l'absence de déchets aux marques distinctes. Les autres groupes sont très écartés dans le plan. Le groupe n°5 rassemble les sites-saison avec des déchets de marque **Pom'potes**. Le groupe n°4 ne comporte que des sites-saison de l'Alisu, composés d'un mélange **Pom'potes et Kinder.** Les groupes orange (n°2) et violet (n°7) ne sont composés que d'un site chacun, tous les deux caractérisés par la présence de **Kinder**. Le groupe bleu foncé (n°6) correspond à des sites-saison avec présence de paquets de **Marlboro**. Finalement le groupe rouge n°1 est composé de deux sites saison avec présence de déchets de la marque **Haribo**.
+
+Afin d'affiner l'analyse, les sites-saisons sont représentés avec des **couleurs différentes pour chaque site** :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(1, 2),
+                marque_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 8),
+                habillage = macrodechets_marque_habillage[["site"]]) 
+
+```
+
+Le site de l'**Alisu** présente à plusieurs saisons des déchets de la marque **Kinder**. Des déchets de la marque **Marlboro** sont présents à deux fois au site de **Ferringule**. A part ces deux cas, il n'y a pas de lien particuliers entre le site et la marque des déchets retrouvés.
+
+Regardons maintenant si la **saison** a un effet sur les marques des déchets retrouvés :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(1, 2),
+                marque_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 8),
+                habillage = macrodechets_marque_habillage[["saison"]]) 
+
+```
+
+Les déchets de la marque **Pom'potes** sont retrouvés sur les plages en **automne** tandis que les déchets de la marque **Marlboro** le sont en **hiver et au printemps**. Néanmoins d'autres variables interagissent sur ces dimensions donc il est difficile d'interpréter correctement. L'apport des informations sur les dimensions supplémentaires peut apporter des informations pertinentes.
+
+### Dimensions 2 & 3
+
+Réalisons donc le même processus pour les **dimensions 2 & 3** :
+
+```{r}
+fviz_pca_var(marque_pca, axes = c(2, 3), repel = TRUE, col.var = "contrib", select.var = list(contrib = 10)) +
+  scale_color_gradient2(low = "white", mid = "blue", high = "red", midpoint = 7, space = "Lab") +
+  theme(legend.position = 'bottom')
+```
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10   
+
+clustering_pca <- eclust(marque_pca$x[, 1:4], "kmeans", hc_metric = "eucliden", k = 8, graph = FALSE)
+
+fviz_pca_ind(marque_pca, axes = c(2, 3), habillage = clustering_pca$cluster,
+             addEllipses = FALSE, repel = TRUE)
+
+```
+
+La distinction des groupes est encore plus nette ici, avec une grande différence dû aux déchets **Marlboro**, **Kinder** et **Pom'potes**. La marque **Kinder** apparaît trois fois sur le site de l'**Alisu**.
+
+En considérant la représentation par saisons, les informations dans la projection en dimensions 2 et 3 confirment la projection précédente :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(2, 3),
+                marque_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 10),
+                habillage = macrodechets_marque_habillage[["saison"]]) 
+
+```
+
+Les déchets de marque **Pom'potes** sont retrouvés en **automne**, les déchets de marque **Marlboro** sont retrouvés en hiver-printemps et les déchets de marque **Kinder** à **3 saisons de l'année**.
+
+### Dimensions 3 & 4
+
+Réalisons donc le même processus pour les **dimensions 3 & 4** :
+
+```{r}
+fviz_pca_var(marque_pca, axes = c(3, 4), repel = TRUE, col.var = "contrib", select.var = list(contrib = 10)) +
+  scale_color_gradient2(low = "white", mid = "blue", high = "red", midpoint = 7, space = "Lab") +
+  theme(legend.position = 'bottom')
+```
+
+Cette projection dans les dimensions 3 & 4 met plus en valeur la marque Haribo que les autres choix de dimensions.
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10   
+
+clustering_pca <- eclust(marque_pca$x[, 1:4], "kmeans", hc_metric = "eucliden", k = 8, graph = FALSE)
+
+fviz_pca_ind(marque_pca, axes = c(3, 4), habillage = clustering_pca$cluster,
+             addEllipses = FALSE, repel = TRUE)
+
+```
+
+En représentant la projection avec différentes couleurs **par saison** :
+
+```{r}
+#| fig-width: 14         
+#| fig-height: 10  
+
+fviz_pca_biplot(axes = c(3, 4),
+                marque_pca, 
+                repel = TRUE,
+                addEllipses = FALSE,
+                col.var = "black",
+                select.var = list(contrib = 10),
+                habillage = macrodechets_marque_habillage[["saison"]]) 
+
+```
+
+Les deux fois où des déchets de marque **Haribo** ont été retrouvés correspondent à la saison de l'été.
+
+```{r}
+macrodechets_counts_marque <- macrodechets_counts %>%
+  filter(categorie_sub == "marque") %>%
+  filter( categorie_specifique %in% c(
+    "Haribo", 
+    "Kinder", 
+    "Marlboro",
+    "Pom'potes"
+  ))
+```
+
+## Représentation interactive des catégories d'intéret
+
+Afin de confirmer les saisons et interprétation des ACP, représentons de manière interactive les données de nombre d'objets **par catégorie** qui ont été considérées comme importante dans l'ACP :
+
+```{r}
+#| fig-height: 15
+
+t2 <- macrodechets_counts_marque %>%
+  select(site, date, categorie_specifique, valeur_100m) %>%
+  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>%  
+  pivot_wider(names_from = site, values_from = valeur_100m) %>%
+  group_by(categorie_specifique)
+
+t2 %>%
+  e_charts(YearMonth, timeline = TRUE) %>%
+  e_bar(serie = `Ferringule`, name = "Ferringule") %>%
+  e_bar(serie = `La Roya`, name = "La Roya") %>%
+  e_bar(serie = `Saleccia`, name = "Saleccia") %>%
+  e_bar(serie = `Petracurbara`, name = "Petracurbara") %>%
+  e_bar(serie = `Macinaghju`, name = "Macinaghju") %>%
+  e_bar(serie = `Barcaghju`, name = "Barcaghju") %>%
+  e_bar(serie = `Alisu`, name = "Alisu") %>%
+  e_tooltip(trigger = "item") %>%
+  e_x_axis(type = "category", splitLine = list(show = TRUE)) %>%
+  e_y_axis(name = "Objets/100m linéaire côtier") %>%
+  e_title("Macrodéchets par catégories - groupes Zéro déchets sauvages") %>%
+  e_legend(
+    orient = "vertical", 
+    right = "5%", # Adjust the right position
+    top = "10%",  # Move it down
+    itemWidth = 20,  # Set legend item size
+    itemHeight = 14,
+    padding = 5
+  ) %>%
+  e_datazoom(
+    x_index = 0, 
+    type = "slider",
+    bottom = "10%"  # Adjust the position of the datazoom slider
+  ) %>%
+  e_timeline_opts(
+    bottom = "0%"  # Adjust the bottom so the timeline is visible
+  ) %>%
+  e_grid(
+    top = "10%",   # Space for title
+    left = "5%",  # Space for y-axis label
+    right = "5%", # Space for the legend
+    bottom = "20%" # Space for timeline and datazoom
+  ) %>%
+  e_theme("vintage")
+```
+
+## Points-clés
+
+Bien que les distinctions des sites-saisons dans les plan de projection de l'ACP soient beaucoup plus évidentes dans le cas des marques de déchets, le faible de nombre de déchets identifiés avec une marque confère une fiabilité moindre que dans les analyses basées sur d'autres catégorisations. Néanmoins, en se basant sur les informations à disposition :
+
+-   **Quelques marques principales** ressortent du lot quant à la distinction des sites-saison. Ce sont les marques **Pom'potes, Haribo, Marlboro et Kinder.**
+
+-   En dehors de la marque **Kinder** présent 3 fois au site de l'**Alisu**, les marques de déchets ne sont pas particulièrement liées à un site donné.
+
+-   Certains déchets sont caractéristiques de certaines saisons. Les déchets de la marque **Pom'potes** sont retrouvés principalement en **automne**, la marque **Haribo** en **été**, la marque **Marlboro** en **hiver et au printemps**.
+
+-   La marque **Kinder** est présente à trois saison de l'année, mais pas l'été.
+
+Au vu du faible nombre de déchets classés par marque, il est difficile de conclure avec confiance un lien fort entre les saisons et les marques. Le suivi des collectes de macrodéchets permettra de donner plus de confiance quant au lien saison-marque. En se basant sur les données à disposition, il semblerait tout de même y avoir une tendance du lien entre les marques et la saison de collecte.
+
+# Conclusion
+
+L'analyse approfondie des macrodéchets collectés sur les plages du Parc Naturel Marin du Cap Corse et de l'Agriate, catégorisés de diverses manières (filières REP, secteurs d'activité, DCSMM, groupes zéro déchet et marques), a permis d'identifier plusieurs tendances et typologies spécifiques. Il est possible de distinguer certains profils de pollution de plages en fonction des types de déchets dominants, bien que les sites ne soient pas si facilement regroupés en plage types dans tous les cas.
+
+### Synthèse des analyses par méthodes de catégorisation des déchets
+
+**Catégorisation par Filières REP :**
+
+Trois grands types de plages se distinguent :
+
+-   **Plages du type La Roya** : majoritairement polluées par les produits du tabac tout au long de l'année, probablement en lien avec la proximité de cette plage à la ville la plus peuplée (Saint-Florent). Cela en fait un site récurrent de pollution par les mégots, indépendamment des saisons.
+
+-   **Plages du type Alisu, Macinaghju et Barcaghju** : moins touchées par les déchets de tabac, mais présentant une proportion plus importante de déchets d'emballages ménagers et du bâtiment. Ces plages sont proches de villes moins peuplées, ce qui pourrait expliquer la différence avec le type de plage La Roya.
+
+-   **Plages du type Ferringule, Petracurbara et Saleccia** : montrent une variation saisonnière avec une présence plus importante de tabac en été et de déchets d’emballages et du bâtiment en hiver et printemps, suggérant une influence des activités touristiques et plaisancières.
+
+**Catégorisation par Secteurs d'Activité :**
+
+-   La catégorisation par secteur d’activité confirme la prédominance du **tabac** sur certaines plages (La Roya, Saleccia) **toute l’année**.
+
+-   Elle met également en évidence la **spécificité des déchets** d'alimentation, de chasse, d'armement et de bâtiment sur les plages du type Alisu et Barcaghju, en proportion plus élevée que sur les autres plages.
+
+-   Une **variation saisonnière** est observée pour les plages de type Ferringule, Petracurbara et Macinaghju, similaire aux observations faites avec la catégorisation REP, ce qui renforce la robustesse de ces tendances.
+
+**Catégorisation par DCSMM :**
+
+-   Cette classification met en avant des **distinctions plus fines mais moins évidentes** en raison de la diversité des catégories.
+
+-   Le site de La Roya se distingue toujours par sa proportion élevée de **mégots** toute l'année.
+
+-   Les sites de Macinaghju et Alisu montrent des différences marquées par la présence de **fragments de plastique** de tailles variées.
+
+-   La difficulté à séparer d’autres sites montre que cette catégorisation capture davantage de détails mais peut complexifier l’interprétation globale. Elle peut par contre être utile pour faire le suivi d'un type de déchet particulier indépendamment de la caractérisation en plages types.
+
+**Catégorisation par Groupes Zéro Déchet Sauvage :**
+
+-   Les mégots continuent d’être l’élément principal pour distinguer les sites, en lien avec les analyses précédentes.
+
+-   Cette catégorisation met toutefois en lumière des variations fines non observées avant, comme la présence de cotons-tiges ou de bouchons et déchets associés sur certains sites, suggérant des pollutions spécifiques, mais pas distinctement catégorisées par site.
+
+**Catégorisation par Marques de Déchets :**
+
+-   La faible occurrence des déchets identifiables par marque limite les conclusions.
+
+-   Néanmoins, certaines marques (Pom'potes, Haribo, Marlboro, Kinder) apparaissent comme indicateurs saisonniers potentiels, suggérant des habitudes de consommation spécifiques à certaines périodes de l’année.
+
+-   Cette analyse reste exploratoire mais pourrait servir à affiner les politiques de sensibilisation ciblée, notamment avec les données en cours d’acquisition et, pourquoi pas, une fréquence de collecte plus importante sur quelques sites particuliers.
+
+### Conclusion Principale
+
+De manière générale, les déchets de tabac (mégots) apparaissent comme le facteur structurant le plus robuste pour définir les typologies de plages, quel que soit le type de catégorisation. Cela souligne la persistance de ces déchets tout au long de l’année dans certains sites et dans des contextes variés. Ils sont donc intéressants à suivre pour distinguer des profils de plages types.
+
+Sans pouvoir affirmer à 100% que cette structuration est la plus pertinente à l'échelle de toutes les plages du parc, il ressort **trois types de plages** au vu des données à disposition :
+
+1.  **Celles où les déchets liés au tabac sont présents toute l'année.**
+
+2.  **Celles où les déchets liés au tabac caractérisent moins les plages, quelle que soit la saison.**
+
+3.  **Les plages à alternance saisonnière** où les déchets de tabac sont importants l'été, mais moins présents en hiver et au printemps. Durant ces saisons hivernales et printanières, les plages sont partiellement distinguables entre elles par la composition d'autres déchets plus spécifiques.
+
+En outre, la variabilité saisonnière observée pour d'autres catégories de déchets (emballages, produits de bricolage, matériaux de construction) suggère une **influence forte des activités humaines** (tourisme, plaisance, activités locales), nécessitant des **stratégies de gestion adaptées** aux périodes de l’année et à la spécificité de chaque plage (proximité des villes, des ports, accessibilité).
+
+Enfin, ces résultats montrent que les **sites les plus proches des centres urbains** sont généralement plus affectés par les mégots et certains déchets d’emballages, tandis que les **plages éloignées des ports** subissent davantage de variations saisonnières liées aux **activités plaisancières**.
+
+Les recommandations devraient se concentrer sur une **réduction partiellement ciblée des déchets de tabac** et une **gestion différenciée** selon la **saisonnalité** et la **proximité des infrastructures** pour une action plus efficace.
+
+Il est néanmoins important de prendre en compte que ces analyses se basent sur des données de **nombre d'objets par 100 m de linéaire côtier**. Ainsi, cette unité de dénombrement spatial ne prend pas en compte le volume ou le poids des objets, qui peuvent différer de l'abondance mais ne sont pas disponibles pour ces classifications assez fines. Il serait d'ailleurs pertinent de calculer des **indices d'impact spécifiques** aux macrodéchets pour chaque site à chaque saison. Ces indices pourraient, par exemple, être représentatifs de la **toxicité des déchets**, de leur **longévité dans l'environnement**, et de leurs **impacts sur des espèces particulières,** ce qui est peut-être plus pertinent que leur nombre.

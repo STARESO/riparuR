@@ -1,0 +1,29 @@
+/* styles.css */
+/* Expand the main container width */
+.main-container {
+  max-width: 150%; /* Full HD width */
+  margin: 0 auto;    /* Center the main content */
+}
+
+/* Expand the header, footer, and TOC to match the full container 
+header, footer, .toc, .title-slide {
+  max-width: 1920px;
+  margin: 0 auto;
+}
+*/
+
+/* Adjust text and section width for better layout on large screens */
+.title, .section {
+  width: 95%;
+}
+
+/* Full-width content elements */
+.content-container {
+  width: 100%;
+  padding: 0;
+}
+
+/* Larger plot area for ggplots 
+.figure, .figure img {
+  width: 100%;             
+} */
