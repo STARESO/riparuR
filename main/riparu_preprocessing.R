@@ -2,7 +2,6 @@
 #' title : "RIPARU - Preprocessing"
 #' author : Aubin Woehrel
 #' date : 2024-09-23
-#' version : 1.0
 #' ---
 #'
 #' =============================================================================
@@ -18,7 +17,7 @@
 
 # Initialization ----
 
-## Clean up ----
+## Clean up ----             
 rm(list = ls())
 
 ## Library imports ----
@@ -79,7 +78,9 @@ typologie_sites <- typologie_sites %>%
 # Lower all column names and pass to ascii
 typologie_sites <- typologie_sites %>%
   rename_with(
-    .fn = function(x) { stringi::stri_trans_general(x, "Latin-ASCII") },
+    .fn = function(x) {
+      stringi::stri_trans_general(x, "Latin-ASCII")
+    },
     .cols = everything()
   ) %>%
   rename_all(stringr::str_to_lower)
@@ -98,8 +99,8 @@ sheet_names <- getSheetNames(paths$microplastics_raw)
 sheet_names <- sheet_names[!sheet_names %in% c("Modèle", "TOTAL")]
 microplastics <- load_microplastics(paths$microplastics_raw, sheet_names)
 
-# Computing a summary data of microplastics per Date (i.e. also the combination of saison and annee) 
-# and site without the details of type and Description but keep also all other metadata with all 
+# Computing a summary data of microplastics per Date (i.e. also the combination of saison and annee)
+# and site without the details of type and Description but keep also all other metadata with all
 # Latitude and Longitude per point, and site, annee, saison
 
 microplastics_total <- microplastics %>%
@@ -185,8 +186,9 @@ dim(macrodechets)
 names(macrodechets)
 
 # Check the unique values in each column and make it a data frame
-unique_values <- sapply(macrodechets, function(x)
-  length(unique(x))) %>%
+unique_values <- sapply(macrodechets, function(x) {
+  length(unique(x))
+}) %>%
   as.data.frame(.) %>%
   rename(unique_Values = 1)
 
@@ -219,7 +221,7 @@ t1 <- macrodechets %>%
   as.data.frame()
 
 # Group the observations by locality (Nom_zone) and count the number of observations in each group
-# And save the result in a new data frame where it is sorted by the number of observations in each 
+# And save the result in a new data frame where it is sorted by the number of observations in each
 # site
 t2 <- macrodechets %>%
   group_by(nom_zone) %>%
@@ -236,19 +238,21 @@ t3 <- macrodechets %>%
 
 ## Geographical position ----
 
-# Latitude + Longitude then removing the other characters that are not numbers except for the 
+# Latitude + Longitude then removing the other characters that are not numbers except for the
 # decimal (.) and then converting them in numeric
 
 macrodechets <- macrodechets %>%
-  #separate(LIEU_COORD_GPS, c("Longitude", "Latitude"), sep = ",", remove = TRUE) %>%
+  # separate(LIEU_COORD_GPS, c("Longitude", "Latitude"), sep = ",", remove = TRUE) %>%
   rename(latitude = "lieu_coord_gps_lat", longitude = "lieu_coord_gps_lon")
 
 
 # Verify that all identical site names have the same coordinates
 t4 <- macrodechets %>%
   group_by(nom_zone) %>%
-  summarise(latitude = mean(latitude),
-            longitude = mean(longitude)) %>%
+  summarise(
+    latitude = mean(latitude),
+    longitude = mean(longitude)
+  ) %>%
   arrange(nom_zone) %>%
   as.data.frame()
 
@@ -258,7 +262,7 @@ t4 <- macrodechets %>%
 macrodechets <- macrodechets %>%
   mutate(site = nom_zone)
 
-# Change names of site on condition of each name with case when dplyr and all other not known are 
+# Change names of site on condition of each name with case when dplyr and all other not known are
 # not changed and place it after the dates and before the other columns
 macrodechets <- macrodechets %>%
   mutate(nom_zone = str_to_sentence(nom_zone)) %>%
@@ -268,8 +272,6 @@ macrodechets <- macrodechets %>%
   # Remove all whitespaces at the beginning
   mutate(nom_zone = str_trim(nom_zone)) %>%
   mutate(nom_zone = str_to_sentence(nom_zone)) %>%
-  
-  
   mutate(
     site = case_when(
       # Plages riparu
@@ -287,7 +289,7 @@ macrodechets <- macrodechets %>%
       nom_zone == "l'ostriconi" ~ "Ostriconi",
       nom_zone == "Plage de pietracorbara" ~ "Petracurbara",
       nom_zone == "Plage de saleccia" ~ "Saleccia",
-      
+
       # Autres plages
       nom_zone == "Plage de chevano" ~ "Chevanu",
       nom_zone == "Plage de Tizzano" ~ "Tizzano",
@@ -330,9 +332,9 @@ macrodechets <- macrodechets %>%
 macrodechets <- macrodechets %>%
   filter(site != "L'Ostriconi")
 
-# Same for the typologie_sites dataset, where Transect 100m début and Transect 100 fin correspond 
-# to the coordinates of the beginning and the end of a transect. 4 columns are obtained with 
-# Latitude and Longitude for the beginning and the end of the transect. The latitude and longitude 
+# Same for the typologie_sites dataset, where Transect 100m début and Transect 100 fin correspond
+# to the coordinates of the beginning and the end of a transect. 4 columns are obtained with
+# Latitude and Longitude for the beginning and the end of the transect. The latitude and longitude
 # are set at the beginning of the data set and inversed for the longitude being before the latitude
 # each time
 
@@ -345,10 +347,8 @@ macrodechets_essentiel <- macrodechets %>%
     names_to = "type",
     values_to = "volume_categorie"
   ) %>%
-  
   # Remove the "Global_volume_" in the type column
   mutate(type = str_remove(type, "global_volume_")) %>%
-  
   # Compute the volume_type per surface and per 100m
   mutate(
     volume_type_m2 = volume_categorie / surface,
@@ -394,39 +394,47 @@ macrodechets_longer <- macrodechets_longer %>%
 # Column of the second word of the type column, i.e. the sub-category
 macrodechets_longer <- macrodechets_longer %>%
   mutate(categorie_sub = case_when(
-    categorie == "nb" ~ sapply(str_split(type, "_"), function(x)
-      if (length(x) >= 3)
+    categorie == "nb" ~ sapply(str_split(type, "_"), function(x) {
+      if (length(x) >= 3) {
         x[3]
-      else
-        NA),
-    TRUE ~ sapply(str_split(type, "_"), function(x)
-      x[2])
+      } else {
+        NA
+      }
+    }),
+    TRUE ~ sapply(str_split(type, "_"), function(x) {
+      x[2]
+    })
   ))
 
 # Column of all the other words of the type column, i.e. the specific category
 macrodechets_longer <- macrodechets_longer %>%
   mutate(categorie_specifique = case_when(
     categorie == "nb" ~ str_match(type, "^(?:[^_]*_){3}(.*)")[, 2],
-    TRUE ~ sapply(str_split(type, "_"), function(x)
-      if (length(x) >= 3)
+    TRUE ~ sapply(str_split(type, "_"), function(x) {
+      if (length(x) >= 3) {
         paste(x[3:length(x)], collapse = "_")
-      else
-        NA_character_)
+      } else {
+        NA_character_
+      }
+    })
   )) %>%
   mutate(
     across(c(categorie, categorie_sub), str_to_lower),
-    categorie_specifique = str_to_sentence(categorie_specifique))
+    categorie_specifique = str_to_sentence(categorie_specifique)
+  )
 
 # Separating the longer into 2 data sets : one with categorie == Nb and one with the rest
 macrodechets_counts <- macrodechets_longer %>%
   filter(categorie == "nb") %>%
   mutate(valeur_100m = (valeur / largeur_transect) / longueur_lineaire * 100) %>%
-  select(id_releve:type,
-         categorie,
-         categorie_sub,
-         categorie_specifique,
-         valeur,
-         valeur_100m) %>%
+  select(
+    id_releve:type,
+    categorie,
+    categorie_sub,
+    categorie_specifique,
+    valeur,
+    valeur_100m
+  ) %>%
   mutate(categorie_sub = case_when(
     categorie_sub %in% c("rep", "dcsmm") ~ toupper(categorie_sub),
     TRUE ~ categorie_sub
@@ -434,11 +442,13 @@ macrodechets_counts <- macrodechets_longer %>%
 
 macrodechets_general <- macrodechets_longer %>%
   filter(categorie != "nb") %>%
-  select(id_releve:type,
-         categorie,
-         categorie_sub,
-         categorie_specifique,
-         valeur)
+  select(
+    id_releve:type,
+    categorie,
+    categorie_sub,
+    categorie_specifique,
+    valeur
+  )
 
 # Saving processed data ----
 
@@ -452,7 +462,7 @@ saveRDS(typologie_sites, paths$typology_sites_processed)
 
 ## CSV files ----
 write.csv(microplastics, paths$microplatics_processed_csv, row.names = FALSE)
-write.csv(microplastics_total,paths$microplastics_total_processed_csv, row.names = FALSE)
+write.csv(microplastics_total, paths$microplastics_total_processed_csv, row.names = FALSE)
 write.csv(macrodechets_general, paths$macrodechets_general_processed_csv, row.names = FALSE)
 write.csv(macrodechets_counts, paths$macrodechets_counts_processed_csv, row.names = FALSE)
 write.csv(macrodechets_essentiel, paths$macrodechets_essential_processed_csv, row.names = FALSE)

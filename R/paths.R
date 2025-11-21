@@ -2,25 +2,22 @@
 #' title : "RIPARU - Paths of folders and files"
 #' author : Aubin Woehrel
 #' date : 2024-09-23
-#' version : 1.0
 #' ---
 #'
 #' =============================================================================
-#' 
+#'
 #' MARE VIVU RIPARU - PATHS OF FOLDERS AND FILES
-#' 
-#' Description : 
+#'
+#' Description :
 #' This script contains the paths of the folders and files used in the project.
 #' All the paths are stored in the `paths` object.
-#' 
+#'
 #' =============================================================================
-
 
 # Raw data ----
 microplastics_raw <- "data/raw/categorisation_microplastiques_riparu.xlsx"
 macrodechets_raw <- "data/raw/export_releves_2024-06.xlsx"
 typology_sites_raw <- "data/raw/typologie_sites.xlsx"
-
 
 # Processed data rds ----
 microplatics_processed <- "data/processed/riparu_microplastics.rds"
@@ -39,11 +36,10 @@ macrodechets_essential_processed_csv <- "data/processed/riparu_macrodechets_esse
 typology_sites_processed_csv <- "data/processed/riparu_typology_sites.csv"
 
 # Preparing paths object for sourcing in other scripts :
-# Takes all the variables and stores them in the object paths 
+# Takes all the variables and stores them in the object paths
 paths_names <- ls(envir = .GlobalEnv)
 paths <- mget(paths_names, envir = .GlobalEnv)
 paths <- as.list(paths)
-
 
 rm(list = paths_names)
 rm(list = ls()[!ls() %in% c("paths")])
