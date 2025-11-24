@@ -14,10 +14,9 @@
 #'
 #' =============================================================================
 
-
 # Initialization ----
 
-## Clean up ----             
+## Clean up ----
 rm(list = ls())
 
 ## Library imports ----
@@ -31,6 +30,9 @@ library("dplyr")
 library("tidyr")
 library("tibble")
 library("stringr")
+
+# Data verification
+library("skimr")
 
 # Plotting
 library("ggplot2")
@@ -71,7 +73,6 @@ typologie_sites <- typologie_sites %>%
   )
 
 # Reposition in the order : Longitude_Debut, Latitude_Debut, Longitude_Fin, Latitude_Fin
-
 typologie_sites <- typologie_sites %>%
   select(9, 8, 11, 10, 1:7, 12:dim(typologie_sites)[2])
 
