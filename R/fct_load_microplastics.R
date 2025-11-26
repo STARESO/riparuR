@@ -29,16 +29,15 @@ load_microplastics <- function(file_path, sheet_names) {
     )
 
     # Read specific spatial coordinates data
-
     sheet_coordinates <- read.xlsx(
       xlsxFile = file_path, fillMergedCells = TRUE, colNames = FALSE,
       sheet = sheet_name, rows = 37:40
     )
 
-
     # Replace all "X" or "x" by NA
     sheet_data[sheet_data == "X"] <- NA
     sheet_data[sheet_data == "x"] <- NA
+    sheet_data[sheet_data == "NA"] <- NA
 
     # Obtaining metadata to be added to the data after transformation
     metadata <- sheet_data[c(1:3, 32), 3:ncol(sheet_data)] %>%
@@ -69,7 +68,6 @@ load_microplastics <- function(file_path, sheet_names) {
       slice(rep(1:n(), each = nrow(metadata)))
 
     metadata <- cbind(metadata, sheet_coordinates)
-
 
     # Convert Dates to better format and ignore all missing dates
     metadata <- metadata %>%
@@ -121,11 +119,13 @@ load_microplastics <- function(file_path, sheet_names) {
     names(sheet_data) <- str_to_sentence(names(sheet_data))
 
     data <- bind_rows(data, sheet_data)
+    data_view <<- data
   }
 
   # Transform as factor Annee, Saison, Site and specify levels as order of seasons for seasons.
   # Then sort by Year, Season and Site.
   data <- data %>%
+    mutate(across(where(is.character), ~ na_if(., "NA"))) %>%
     mutate(across(c(Annee, Saison, Site), as.factor)) %>%
     mutate(Saison = factor(Saison, levels = c("Printemps", "Eté", "Automne", "Hiver"))) %>%
     arrange(Annee, Saison, Site)
@@ -138,7 +138,6 @@ load_microplastics <- function(file_path, sheet_names) {
       Meso_normalise = Meso_5mm / 5 * 100,
       Micro_normalise = Micro_1mm / 5 * 100,
       Total_normalise = Total / 5 * 100
-    )
-
-  return(data)
+    ) %>%
+    mutate(across(where(is.numeric), ~ ifelse(is.nan(.x), NA, .x)))
 }
