@@ -2,16 +2,15 @@
 #' title : "RIPARU - macrodechets time series"
 #' author : Aubin Woehrel
 #' date : 2024-09-23
-#' version : 1.0
 #' ---
 #'
 #' =============================================================================
 #'
 #' MARE VIVU RIPARU - macrodechets TIME SERIES
-#' 
-#' Description : 
+#'
+#' Description :
 #' Time series of macrodechets counts
-#' 
+#'
 #' =============================================================================
 
 
@@ -26,7 +25,7 @@ rm(list = ls())
 library("openxlsx")
 library("readxl")
 
-# Data tidying 
+# Data tidying
 library("dplyr")
 library("tidyr")
 library("tibble")
@@ -42,9 +41,9 @@ source("R/paths.R")
 source("R/fct_load_microplastics.R")
 
 ## Loading data ----
-macrodechets_general <- readRDS(paths$macrodechets_general_processed)
-macrodechets_counts <- readRDS(paths$macrodechets_counts_processed)
-typologie_sites <- readRDS(paths$typology_sites_processed)
+macrodechets_general <- readRDS(paths$processed_macrodechets_general)
+macrodechets_nb <- readRDS(paths$processed_macrodechets_nb)
+typologie_sites <- readRDS(paths$processed_typologie_sites)
 
 # Plot all time series on one same graph of values 100m of categorie_sub == REP and categorie_specifique in :
 # Articles de bricolage et de jardin
@@ -57,73 +56,73 @@ typologie_sites <- readRDS(paths$typology_sites_processed)
 # Textiles sanitaires à usages uniques
 # Secteur agriculture
 
-
-
-
 # Filière REP ----
 
 # Filter data
-macrodechets_counts_filt <- macrodechets_counts %>%
+macrodechets_nb_filt <- macrodechets_nb %>%
   filter(categorie_sub == "REP") %>%
   filter(categorie_specifique %in% c(
-    "Articles de bricolage et de jardin", 
-    "Articles de sport et de loisirs", 
-    "Bâtiment", 
-    "Déchets d'emballages ménagers", 
-    "Engins de pêche", 
-    "Jouets", 
-    "Produits du tabac", 
-    "Textiles sanitaires à usage unique"))
+    "Articles de bricolage et de jardin",
+    "Articles de sport et de loisirs",
+    "Bâtiment",
+    "Déchets d'emballages ménagers",
+    "Engins de pêche",
+    "Jouets",
+    "Produits du tabac",
+    "Textiles sanitaires à usage unique"
+  ))
 
 
 # Plot data
 
-ggplot(macrodechets_counts_filt, aes(x = date, y = valeur_100m, color = categorie_specifique)) +
+ggplot(macrodechets_nb_filt, aes(x = date, y = valeur_100m, color = categorie_specifique)) +
   geom_point() +
   geom_line() +
   facet_wrap(~site, scales = "free_y") +
   scale_x_date(date_breaks = "1 month") +
   theme_pubr() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  labs(title = "Nombre d'objets macroplastiques trouvés par catégorie spécifique",
-       x = "date",
-       y = "Nombre d'objets") +
-  scale_color_manual(values = c("Articles de bricolage et de jardin" = "red",
-                                "Articles de sport et de loisirs" = "blue",
-                                "Bâtiment" = "green",
-                                "Déchets d'emballages ménagers" = "orange",
-                                "Engins de pêche" = "purple",
-                                "Jouets" = "black",
-                                "Produits du tabac" = "brown",
-                                "Textiles sanitaires à usage unique" = "pink")) 
-
-
+  labs(
+    title = "Nombre d'objets macroplastiques trouvés par catégorie spécifique",
+    x = "date",
+    y = "Nombre d'objets"
+  ) +
+  scale_color_manual(values = c(
+    "Articles de bricolage et de jardin" = "red",
+    "Articles de sport et de loisirs" = "blue",
+    "Bâtiment" = "green",
+    "Déchets d'emballages ménagers" = "orange",
+    "Engins de pêche" = "purple",
+    "Jouets" = "black",
+    "Produits du tabac" = "brown",
+    "Textiles sanitaires à usage unique" = "pink"
+  ))
 
 
 # macrodechets count with smooth
-ggplot(macrodechets_counts_filt, aes(x = date, y = valeur_100m, color = categorie_specifique)) +
+ggplot(macrodechets_nb_filt, aes(x = date, y = valeur_100m, color = categorie_specifique)) +
   geom_point() +
-  #geom_line() +
+  # geom_line() +
   geom_smooth(se = FALSE) +
   facet_wrap(~site, scales = "free_y") +
   scale_x_date(date_breaks = "1 month") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  labs(title = "Nombre d'objets macroplastiques trouvés par catégorie spécifique",
-       x = "date",
-       y = "Nombre d'objets") +
-  scale_color_manual(values = c("Articles de bricolage et de jardin" = "red",
-                                "Articles de sport et de loisirs" = "blue",
-                                "Bâtiment" = "green",
-                                "Déchets d'emballages ménagers" = "orange",
-                                "Engins de pêche" = "purple",
-                                "Jouets" = "black",
-                                "Produits du tabac" = "brown",
-                                "Textiles sanitaires à usage unique" = "pink"))
-
-
-
-
+  labs(
+    title = "Nombre d'objets macroplastiques trouvés par catégorie spécifique",
+    x = "date",
+    y = "Nombre d'objets"
+  ) +
+  scale_color_manual(values = c(
+    "Articles de bricolage et de jardin" = "red",
+    "Articles de sport et de loisirs" = "blue",
+    "Bâtiment" = "green",
+    "Déchets d'emballages ménagers" = "orange",
+    "Engins de pêche" = "purple",
+    "Jouets" = "black",
+    "Produits du tabac" = "brown",
+    "Textiles sanitaires à usage unique" = "pink"
+  ))
 
 
 # Create color mapping
@@ -139,14 +138,13 @@ colors <- c(
 )
 
 # Pivot the data wider
-t1 <- macrodechets_counts_filt %>%
+t1 <- macrodechets_nb_filt %>%
   select(site, date, categorie_specifique, valeur_100m) %>%
   pivot_wider(names_from = categorie_specifique, values_from = valeur_100m) %>%
-  group_by(site) 
+  group_by(site)
 
 g1 <- t1 %>%
   e_charts(date, timeline = TRUE) %>%
-  
   e_bar(serie = `Articles de bricolage et de jardin`, name = "Articles de bricolage et de jardin", legend = TRUE, timeline = TRUE) %>%
   e_bar(serie = `Articles de sport et de loisirs`, name = "Articles de sport et de loisirs", legend = TRUE, timeline = TRUE) %>%
   e_bar(serie = `Bâtiment`, name = "Bâtiment", legend = TRUE, timeline = TRUE) %>%
@@ -155,7 +153,6 @@ g1 <- t1 %>%
   e_bar(serie = `Jouets`, name = "Jouets", legend = TRUE, timeline = TRUE) %>%
   e_bar(serie = `Produits du tabac`, name = "Produits du tabac", legend = TRUE, timeline = TRUE) %>%
   e_bar(serie = `Textiles sanitaires à usage unique`, name = "Textiles sanitaires à usage unique", legend = TRUE, timeline = TRUE) %>%
-  
   e_tooltip(trigger = "item") %>%
   e_x_axis(type = "time", splitLine = list(show = TRUE)) %>%
   e_y_axis(name = "Nombre d'objets") %>%
@@ -168,15 +165,14 @@ g1
 
 
 # Pivot the data wider and aggregate by Year-Month
-t2 <- macrodechets_counts_filt %>%
+t2 <- macrodechets_nb_filt %>%
   select(site, date, categorie_specifique, valeur_100m) %>%
-  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>%  # Create Year-Month column
+  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>% # Create Year-Month column
   pivot_wider(names_from = site, values_from = valeur_100m) %>%
   group_by(categorie_specifique)
 
 g2 <- t2 %>%
   e_charts(YearMonth, timeline = TRUE) %>%
-  
   # Bar series for each site
   e_bar(serie = `Ferringule`, name = "Ferringule") %>%
   e_bar(serie = `La Roya`, name = "La Roya") %>%
@@ -185,45 +181,39 @@ g2 <- t2 %>%
   e_bar(serie = `Macinaghju`, name = "Macinaghju") %>%
   e_bar(serie = `Barcaghju`, name = "Barcaghju") %>%
   e_bar(serie = `Alisu`, name = "Alisu") %>%
-  
   # Tooltip and axis configuration
   e_tooltip(trigger = "item") %>%
   e_x_axis(type = "category", splitLine = list(show = TRUE)) %>%
   e_y_axis(name = "Objets/100m linéaire côtier") %>%
   e_title("Nombre d'objets macroplastiques filière REP") %>%
-  
   # Adjust the legend to avoid overlap
   e_legend(
-    orient = "vertical", 
+    orient = "vertical",
     right = "5%", # Adjust the right position
-    top = "10%",  # Move it down
-    itemWidth = 20,  # Set legend item size
+    top = "10%", # Move it down
+    itemWidth = 20, # Set legend item size
     itemHeight = 14,
     padding = 5
   ) %>%
-  
   # DataZoom configuration with adjusted position
   e_datazoom(
-    x_index = 0, 
+    x_index = 0,
     type = "slider",
-    bottom = "10%"  # Adjust the position of the datazoom slider
+    bottom = "10%" # Adjust the position of the datazoom slider
   ) %>%
-  
   e_timeline_opts(
-    bottom = "0%"  # Adjust the bottom so the timeline is visible
+    bottom = "0%" # Adjust the bottom so the timeline is visible
     # label = list(
     #   rotate = 90
     # )
   ) %>%
-  
   # Adjust grid size to reduce the size of the main plot and make room for other elements
   e_grid(
-    top = "10%",   # Space for title
-    left = "5%",  # Space for y-axis label
+    top = "10%", # Space for title
+    left = "5%", # Space for y-axis label
     right = "5%", # Space for the legend
     bottom = "20%" # Space for timeline and datazoom
   ) %>%
-  
   e_theme("vintage")
 
 g2
@@ -233,21 +223,21 @@ g2
 # Catégorisation groupes ----
 
 # Filter data
-macrodechets_counts_group <- macrodechets_counts %>%
+macrodechets_nb_group <- macrodechets_nb %>%
   filter(categorie_sub == "Groupe") %>%
-  filter( categorie_specifique %in% c(
-    "Bâtons de sucette", 
+  filter(categorie_specifique %in% c(
+    "Bâtons de sucette",
     "Cotons-tiges",
     "Cotons-tiges en carton",
-    "Médias filtrants", 
-    "Pailles en plastique", 
+    "Médias filtrants",
+    "Pailles en plastique",
     "Sacs plastique"
   ))
 
 # Echarts site group
 
 # Pivot the data wider
-t1 <- macrodechets_counts_group %>%
+t1 <- macrodechets_nb_group %>%
   select(site, date, categorie_specifique, valeur_100m) %>%
   pivot_wider(names_from = categorie_specifique, values_from = valeur_100m) %>%
   group_by(site)
@@ -266,12 +256,12 @@ g1 <- t1 %>%
   e_title("Nombre d'objets macroplastiques par groupe de catégorisation") %>%
   e_axis_labels(x = "date", y = "Objets/100m linéaire côtier") %>%
   e_theme("vintage") %>%
-  e_legend(orient = "vertical", right = "10%") 
+  e_legend(orient = "vertical", right = "10%")
 g1
 
-t2 <- macrodechets_counts_group %>%
+t2 <- macrodechets_nb_group %>%
   select(site, date, categorie_specifique, valeur_100m) %>%
-  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>%  # Create Year-Month column
+  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>% # Create Year-Month column
   pivot_wider(names_from = site, values_from = valeur_100m) %>%
   group_by(categorie_specifique)
 
@@ -289,24 +279,24 @@ g2 <- t2 %>%
   e_y_axis(name = "Objets/100m linéaire côtier") %>%
   e_title("Nombre d'objets macroplastiques par groupe de catégorisation") %>%
   e_legend(
-    orient = "vertical", 
+    orient = "vertical",
     right = "5%", # Adjust the right position
-    top = "10%",  # Move it down
-    itemWidth = 20,  # Set legend item size
+    top = "10%", # Move it down
+    itemWidth = 20, # Set legend item size
     itemHeight = 14,
     padding = 5
   ) %>%
   e_datazoom(
-    x_index = 0, 
+    x_index = 0,
     type = "slider",
-    bottom = "10%"  # Adjust the position of the datazoom slider
+    bottom = "10%" # Adjust the position of the datazoom slider
   ) %>%
   e_timeline_opts(
-    bottom = "0%"  # Adjust the bottom so the timeline is visible
+    bottom = "0%" # Adjust the bottom so the timeline is visible
   ) %>%
   e_grid(
-    top = "10%",   # Space for title
-    left = "5%",  # Space for y-axis label
+    top = "10%", # Space for title
+    left = "5%", # Space for y-axis label
     right = "5%", # Space for the legend
     bottom = "20%" # Space for timeline and datazoom
   ) %>%
@@ -318,13 +308,13 @@ g2
 
 
 # Catégorisation Secteur ----
-macrodechets_counts_secteurs <- macrodechets_counts %>%
+macrodechets_nb_secteurs <- macrodechets_nb %>%
   filter(categorie_sub == "Secteur") %>%
-  filter( categorie_specifique %in% c(
+  filter(categorie_specifique %in% c(
     "Alimentation",
-    "Aquaculture", 
+    "Aquaculture",
     "Bâtiment, travaux et matériaux de construction",
-    "Chasse et armement", 
+    "Chasse et armement",
     "Cosmétiques, hygiène et soins personnels",
     "Détergents et produits d'entretiens",
     "Jouets et loisir",
@@ -335,7 +325,7 @@ macrodechets_counts_secteurs <- macrodechets_counts %>%
     "Vaisselle à usage unique"
   ))
 
-t1 <- macrodechets_counts_secteurs %>%
+t1 <- macrodechets_nb_secteurs %>%
   select(site, date, categorie_specifique, valeur_100m) %>%
   pivot_wider(names_from = categorie_specifique, values_from = valeur_100m) %>%
   group_by(site)
@@ -366,9 +356,9 @@ g1
 
 
 
-t2 <- macrodechets_counts_secteurs %>%
+t2 <- macrodechets_nb_secteurs %>%
   select(site, date, categorie_specifique, valeur_100m) %>%
-  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>%  # Create Year-Month column
+  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>% # Create Year-Month column
   pivot_wider(names_from = site, values_from = valeur_100m) %>%
   group_by(categorie_specifique)
 
@@ -386,24 +376,24 @@ g2 <- t2 %>%
   e_y_axis(name = "Objets/100m linéaire côtier") %>%
   e_title("Nombre d'objets macroplastiques - secteur d'activité") %>%
   e_legend(
-    orient = "vertical", 
+    orient = "vertical",
     right = "5%", # Adjust the right position
-    top = "10%",  # Move it down
-    itemWidth = 20,  # Set legend item size
+    top = "10%", # Move it down
+    itemWidth = 20, # Set legend item size
     itemHeight = 14,
     padding = 5
   ) %>%
   e_datazoom(
-    x_index = 0, 
+    x_index = 0,
     type = "slider",
-    bottom = "10%"  # Adjust the position of the datazoom slider
+    bottom = "10%" # Adjust the position of the datazoom slider
   ) %>%
   e_timeline_opts(
-    bottom = "0%"  # Adjust the bottom so the timeline is visible
+    bottom = "0%" # Adjust the bottom so the timeline is visible
   ) %>%
   e_grid(
-    top = "10%",   # Space for title
-    left = "5%",  # Space for y-axis label
+    top = "10%", # Space for title
+    left = "5%", # Space for y-axis label
     right = "5%", # Space for the legend
     bottom = "20%" # Space for timeline and datazoom
   ) %>%
@@ -415,12 +405,12 @@ g2
 
 # Catégorisation DCSMM ----
 
-macrodechets_counts_dcsmm <- macrodechets_counts %>%
+macrodechets_nb_dcsmm <- macrodechets_nb %>%
   filter(categorie_sub == "DCSMM") %>%
   filter(categorie_specifique %in% c(
     "Bouchons et couvercles de bouteille",
     "Bouchons et couvercles non alimentaire",
-    "Bouteilles en plastique alimentaire inférieures à 0,5 l",             
+    "Bouteilles en plastique alimentaire inférieures à 0,5 l",
     "Bouteilles en plastique alimentaire supérieures à 0,5 l",
     "Bouteilles et contenants produit de nettoyage",
     "Cartouches et bourre de chasse",
@@ -430,14 +420,14 @@ macrodechets_counts_dcsmm <- macrodechets_counts %>%
     "Emballages non-alimentaires identifiés",
     "Emballages sucreries et chips",
     "Fragments de polystyrène",
-    "Fragments de polystyrène  supérieurs à 50 cm",                         
-    "Fragments de polystyrène 0 - 2,5 cm",                                  
+    "Fragments de polystyrène  supérieurs à 50 cm",
+    "Fragments de polystyrène 0 - 2,5 cm",
     "Fragments de polystyrène 2,5 - 50 cm",
     "Lingettes jetables"
   ))
 
 
-t1 <- macrodechets_counts_dcsmm %>%
+t1 <- macrodechets_nb_dcsmm %>%
   select(site, date, categorie_specifique, valeur_100m) %>%
   pivot_wider(names_from = categorie_specifique, values_from = valeur_100m) %>%
   group_by(site)
@@ -470,9 +460,9 @@ g1 <- t1 %>%
 g1
 
 
-t2 <- macrodechets_counts_dcsmm %>%
+t2 <- macrodechets_nb_dcsmm %>%
   select(site, date, categorie_specifique, valeur_100m) %>%
-  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>%  # Create Year-Month column
+  mutate(YearMonth = lubridate::floor_date(ymd(date), "month")) %>% # Create Year-Month column
   pivot_wider(names_from = site, values_from = valeur_100m) %>%
   group_by(categorie_specifique)
 
@@ -490,27 +480,26 @@ g2 <- t2 %>%
   e_y_axis(name = "Objets/100m linéaire côtier") %>%
   e_title("Nombre d'objets macroplastiques - DCSMM") %>%
   e_legend(
-    orient = "vertical", 
+    orient = "vertical",
     right = "5%", # Adjust the right position
-    top = "10%",  # Move it down
-    itemWidth = 20,  # Set legend item size
+    top = "10%", # Move it down
+    itemWidth = 20, # Set legend item size
     itemHeight = 14,
     padding = 5
   ) %>%
   e_datazoom(
-    x_index = 0, 
+    x_index = 0,
     type = "slider",
-    bottom = "10%"  # Adjust the position of the datazoom slider
+    bottom = "10%" # Adjust the position of the datazoom slider
   ) %>%
   e_timeline_opts(
-    bottom = "0%"  # Adjust the bottom so the timeline is visible
+    bottom = "0%" # Adjust the bottom so the timeline is visible
   ) %>%
-  
   e_grid(
-    top = "10%",   # Space for title
-    left = "5%",  # Space for y-axis label
+    top = "10%", # Space for title
+    left = "5%", # Space for y-axis label
     right = "5%", # Space for the legend
     bottom = "20%" # Space for timeline and datazoom
   ) %>%
   e_theme("vintage")
-g2  
+g2

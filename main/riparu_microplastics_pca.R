@@ -2,7 +2,6 @@
 #' title : "RIPARU - Microplastics PCA"
 #' author : Aubin Woehrel
 #' date : 2024-09-26
-#' version : 1.0
 #' ---
 #'
 #' =============================================================================

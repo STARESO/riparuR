@@ -11,7 +11,6 @@
 #' Description :
 #' Spatial representation of data
 #'
-#'
 #' =============================================================================
 
 # Initialization ----
