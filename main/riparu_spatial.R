@@ -55,12 +55,15 @@ st_segment <- function(r) {
   st_linestring(t(matrix(unlist(r), 2, 2)))
 }
 
-typologie_sites$geom <- st_sfc(sapply(1:nrow(typologie_sites),
-  function(i) {
-    st_segment(typologie_sites[i, 1:4])
-  },
-  simplify = FALSE
-))
+typologie_sites$geom <- st_sfc(
+  sapply(
+    seq_len(nrow(typologie_sites)),
+    function(i) {
+      st_segment(typologie_sites[i, 1:4])
+    },
+    simplify = FALSE
+  )
+)
 
 typologie_sites_sf <- typologie_sites %>%
   st_sf(crs = 4326) # Convert to sf object
@@ -90,23 +93,29 @@ st_polygon_better <- function(r) {
 
 # Microplastics with detail as sf
 microplastics_sf <- microplastics
-microplastics_sf$geom <- st_sfc(sapply(1:nrow(microplastics_sf),
-  function(i) {
-    st_polygon_better(microplastics_sf[i, 8:15])
-  },
-  simplify = FALSE
-))
+microplastics_sf$geom <- st_sfc(
+  sapply(
+    seq_len(nrow(microplastics_sf)),
+    function(i) {
+      st_polygon_better(microplastics_sf[i, 8:15])
+    },
+    simplify = FALSE
+  )
+)
 microplastics_sf <- microplastics_sf %>%
   st_sf(crs = 4326) # Convert to sf object
 
 # Microplastics total as sf
 microplastics_total_sf <- microplastics_total
-microplastics_total_sf$geom <- st_sfc(sapply(1:nrow(microplastics_total_sf),
-  function(i) {
-    st_polygon_better(microplastics_total_sf[i, 11:18])
-  },
-  simplify = FALSE
-))
+microplastics_total_sf$geom <- st_sfc(
+  sapply(
+    seq_len(nrow(microplastics_total_sf)),
+    function(i) {
+      st_polygon_better(microplastics_total_sf[i, 11:18])
+    },
+    simplify = FALSE
+  )
+)
 microplastics_total_sf <- microplastics_total_sf %>%
   st_sf(crs = 4326) # Convert to sf object
 
@@ -135,4 +144,5 @@ mapview(
     )
   )
 
+# Microplastics
 mapview(microplastics_total_sf, zcol = "total_normalise", label = c("site"))
