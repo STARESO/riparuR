@@ -15,6 +15,7 @@
 #'
 #' =============================================================================
 
+source("R/constants.R")
 
 load_microplastics <- function(file_path, sheet_names) {
   data <- tibble()
@@ -135,9 +136,9 @@ load_microplastics <- function(file_path, sheet_names) {
   data <- data %>%
     mutate(across(c(Meso_5mm, Micro_1mm, Total), as.numeric)) %>%
     mutate(
-      Meso_normalise = Meso_5mm / 5 * 100,
-      Micro_normalise = Micro_1mm / 5 * 100,
-      Total_normalise = Total / 5 * 100
+      Meso_normalise = Meso_5mm / largeur_transect * 100,
+      Micro_normalise = Micro_1mm / largeur_transect * 100,
+      Total_normalise = Total / largeur_transect * 100
     ) %>%
     mutate(across(where(is.numeric), ~ ifelse(is.nan(.x), NA, .x)))
 }
