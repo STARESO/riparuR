@@ -45,7 +45,7 @@ source("R/fct_load_microplastics.R")
 
 # Typologie sites ----
 
-typologie_sites <- read_excel(paths$typology_sites_raw, sheet = "RIPARU_Better")
+typologie_sites <- read_excel(paths$raw_typologie_sites, sheet = "RIPARU_Better")
 
 typologie_sites <- typologie_sites %>%
   separate(
@@ -96,69 +96,65 @@ skimr::skim(typologie_sites)
 # transforming it into a tidy format for future analysis
 
 # get the sheet names and remove "Modèle" and "TOTAL"
-sheet_names <- excel_sheets(paths$microplastics_raw)
+sheet_names <- excel_sheets(paths$raw_microplastiques)
 sheet_names <- sheet_names[!sheet_names %in% c("Modèle", "TOTAL", "DATA")]
-microplastics <- load_microplastics(paths$microplastics_raw, sheet_names)
+microplastiques <- load_microplastics(paths$raw_microplastiques, sheet_names)
 
-# Computing a summary data of microplastics per Date (i.e. also the combination of saison and annee)
+microplastiques <- microplastiques %>%
+  rename_all(stringr::str_to_lower)
+
+# Computing a summary data of microplastics per date (i.e. also the combination of saison and annee)
 # and site without the details of type and Description but keep also all other metadata with all
 # Latitude and Longitude per point, and site, annee, saison
-microplastics_total <- microplastics %>%
+microplastiques_total <- microplastiques %>%
   group_by(
-    Date,
-    Site,
-    Annee,
-    Saison,
-    Latitude_a,
-    Latitude_b,
-    Latitude_c,
-    Latitude_d,
-    Longitude_a,
-    Longitude_b,
-    Longitude_c,
-    Longitude_d
+    date,
+    site,
+    annee,
+    saison,
+    latitude_a,
+    latitude_b,
+    latitude_c,
+    latitude_d,
+    longitude_a,
+    longitude_b,
+    longitude_c,
+    longitude_d
   ) %>%
   summarise(across(
     c(
-      Meso_5mm,
-      Micro_1mm,
-      Total,
-      Meso_normalise,
-      Micro_normalise,
-      Total_normalise
+      meso_5mm,
+      micro_1mm,
+      total,
+      meso_normalise,
+      micro_normalise,
+      total_normalise
     ),
     sum,
     na.rm = TRUE
   ))
 
 # Put the latitude and longitude data at the end instead
-microplastics_total <- microplastics_total %>%
-  select(
-    -c(
-      Latitude_a,
-      Latitude_b,
-      Latitude_c,
-      Latitude_d,
-      Longitude_a,
-      Longitude_b,
-      Longitude_c,
-      Longitude_d
+microplastiques_total <- microplastiques_total %>%
+  ungroup() %>%
+  relocate(
+    c(
+      latitude_a,
+      latitude_b,
+      latitude_c,
+      latitude_d,
+      longitude_a,
+      longitude_b,
+      longitude_c,
+      longitude_d
     ),
-    Latitude_a,
-    Latitude_b,
-    Latitude_c,
-    Latitude_d,
-    Longitude_a,
-    Longitude_b,
-    Longitude_c,
-    Longitude_d
-  ) %>%
-  ungroup()
+    .after = everything()
+  )
 
 # Macrodechets ----
 
 # Loading data
-macrodechets <- read_excel(paths$macrodechets_raw)
+macrodechets <- read_excel(paths$raw_macrodechets)
 
 ## Observation and check ----
 # All names to lower case
@@ -478,17 +474,17 @@ macrodechets_general <- macrodechets_longer %>%
 # Saving processed data ----
 
 ## RDS files ----
-saveRDS(microplastics, paths$microplastics_processed)
-saveRDS(microplastics_total, paths$microplastics_total_processed)
-saveRDS(macrodechets_general, paths$macrodechets_general_processed)
-saveRDS(macrodechets_counts, paths$macrodechets_counts_processed)
-saveRDS(macrodechets_essentiel, paths$macrodechets_essential_processed)
-saveRDS(typologie_sites, paths$typology_sites_processed)
+saveRDS(microplastiques, paths$processed_microplastiques)
+saveRDS(microplastiques_total, paths$processed_microplastiques_total)
+saveRDS(macrodechets_general, paths$processed_macrodechets_general)
+saveRDS(macrodechets_counts, paths$processed_macrodechets_nb)
+saveRDS(macrodechets_essentiel, paths$processed_macrodechets_essentiel)
+saveRDS(typologie_sites, paths$processed_typologie_sites)
 
 ## CSV files ----
-write.csv(microplastics, paths$microplastics_processed_csv, row.names = FALSE)
-write.csv(microplastics_total, paths$microplastics_total_processed_csv, row.names = FALSE)
-write.csv(macrodechets_general, paths$macrodechets_general_processed_csv, row.names = FALSE)
-write.csv(macrodechets_counts, paths$macrodechets_counts_processed_csv, row.names = FALSE)
-write.csv(macrodechets_essentiel, paths$macrodechets_essential_processed_csv, row.names = FALSE)
-write.csv(typologie_sites, paths$typology_sites_processed_csv, row.names = FALSE)
+saveRDS(microplastiques, paths$processed_microplastiques_csv)
+saveRDS(microplastiques_total, paths$processed_microplastiques_total_csv)
+saveRDS(macrodechets_general, paths$processed_macrodechets_general_csv)
+saveRDS(macrodechets_counts, paths$processed_macrodechets_nb_csv)
+saveRDS(macrodechets_essentiel, paths$processed_macrodechets_essentiel_csv)
+saveRDS(typologie_sites, paths$processed_typologie_sites_csv)

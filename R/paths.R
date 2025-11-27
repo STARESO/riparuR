@@ -20,25 +20,25 @@ paths_env <- new.env()
 # Populating paths in the path environment
 with(paths_env, {
   # Raw data ----
-  microplastics_raw <- "data/raw/categorisation_microplastiques_riparu_2025.xlsx"
-  macrodechets_raw <- "data/raw/data_zds_2025.xlsx"
-  typology_sites_raw <- "data/raw/typologie_sites.xlsx"
+  raw_microplastiques <- "data/raw/categorisation_microplastiques_riparu_2025.xlsx"
+  raw_macrodechets <- "data/raw/data_zds_2025.xlsx"
+  raw_typologie_sites <- "data/raw/typologie_sites.xlsx"
 
   # Processed data rds ----
-  microplastics_processed <- "data/processed/riparu_microplastics.rds"
-  microplastics_total_processed <- "data/processed/riparu_microplastics_total.rds"
-  macrodechets_general_processed <- "data/processed/riparu_macrodechets_general.rds"
-  macrodechets_counts_processed <- "data/processed/riparu_macrodechets_counts.rds"
-  macrodechets_essential_processed <- "data/processed/riparu_macrodechets_essential.rds"
-  typology_sites_processed <- "data/processed/riparu_typology_sites.rds"
+  processed_microplastiques <- "data/processed/riparu_microplastiques.rds"
+  processed_microplastiques_total <- "data/processed/riparu_microplastiques_total.rds"
+  processed_macrodechets_general <- "data/processed/riparu_macrodechets_general.rds"
+  processed_macrodechets_nb <- "data/processed/riparu_macrodechets_counts.rds"
+  processed_macrodechets_essentiel <- "data/processed/riparu_macrodechets_essential.rds"
+  processed_typologie_sites <- "data/processed/riparu_typologie_sites.rds"
 
   # Processed data csv ----
-  microplastics_processed_csv <- "data/processed/riparu_microplastics.csv"
-  microplastics_total_processed_csv <- "data/processed/riparu_microplastics_total.csv"
-  macrodechets_general_processed_csv <- "data/processed/riparu_macrodechets_general.csv"
-  macrodechets_counts_processed_csv <- "data/processed/riparu_macrodechets_counts.csv"
-  macrodechets_essential_processed_csv <- "data/processed/riparu_macrodechets_essential.csv"
-  typology_sites_processed_csv <- "data/processed/riparu_typology_sites.csv"
+  processed_microplastiques_csv <- "data/processed/riparu_microplastiques.csv"
+  processed_microplastiques_total_csv <- "data/processed/riparu_microplastiques_total.csv"
+  processed_macrodechets_general_csv <- "data/processed/riparu_macrodechets_general.csv"
+  processed_macrodechets_nb_csv <- "data/processed/riparu_macrodechets_counts.csv"
+  processed_macrodechets_essentiel_csv <- "data/processed/riparu_macrodechets_essential.csv"
+  processed_typologie_sites_csv <- "data/processed/riparu_typologie_sites.csv"
 })
 
 # Create folders if missing ----
