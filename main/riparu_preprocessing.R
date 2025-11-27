@@ -395,7 +395,7 @@ classes <- sapply(macrodechets, class) %>%
   as.data.frame() %>%
   rename(classes = ".") %>%
   # Give row number in new column
-  mutate(row = 1:n()) %>%
+  mutate(row = seq_len(n())) %>%
   filter(classes != "numeric")
 
 # Pivot longer

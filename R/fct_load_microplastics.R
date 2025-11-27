@@ -15,8 +15,13 @@
 #'
 #' =============================================================================
 
+# Source and libraries
 source("R/constants.R")
+library("tidyr")
+library("dplyr")
+library("stringr")
 
+# Main loading function
 load_microplastics <- function(file_path, sheet_names) {
   data <- tibble()
 
@@ -24,13 +29,13 @@ load_microplastics <- function(file_path, sheet_names) {
     print(sheet_name)
 
     # Read the data from the excel file
-    sheet_data <- read.xlsx(
+    sheet_data <- openxlsx::read.xlsx(
       xlsxFile = file_path, fillMergedCells = TRUE, colNames = FALSE,
       sheet = sheet_name, rows = 1:34
     )
 
     # Read specific spatial coordinates data
-    sheet_coordinates <- read.xlsx(
+    sheet_coordinates <- openxlsx::read.xlsx(
       xlsxFile = file_path, fillMergedCells = TRUE, colNames = FALSE,
       sheet = sheet_name, rows = 37:40
     )
@@ -50,31 +55,32 @@ load_microplastics <- function(file_path, sheet_names) {
 
     # Separate the sheet_coordinate second column into two columns by the , separator
     sheet_coordinates <- sheet_coordinates %>%
-      separate(X2, into = c("Latitude", "Longitude"), sep = ",") %>%
-      rename(Point = X1)
+      separate("X2", into = c("Latitude", "Longitude"), sep = ",") %>%
+      rename(Point = "X1")
 
     # Round the  Latitude and longitude to 6 decimals
     sheet_coordinates <- sheet_coordinates %>%
-      mutate(across(c(Latitude, Longitude), function(x) round(as.numeric(x), 6)))
+      mutate(across(c("Latitude", "Longitude"), function(x) round(as.numeric(x), 6)))
 
     # Pivot larger the coordinates to obtain one line
     sheet_coordinates <- sheet_coordinates %>%
       pivot_wider(
-        names_from = Point,
-        values_from = c(Latitude, Longitude)
+        names_from = "Point",
+        values_from = c("Latitude", "Longitude")
       )
 
     # Duplicate the coordinates to match the number of rows of the metadata and add those columns to the metadata
     sheet_coordinates <- sheet_coordinates %>%
-      slice(rep(1:n(), each = nrow(metadata)))
+      slice(rep(seq_len(n()), each = nrow(metadata)))
 
     metadata <- cbind(metadata, sheet_coordinates)
 
+
     # Convert Dates to better format and ignore all missing dates
     metadata <- metadata %>%
-      filter(!is.na(DATE)) %>%
-      mutate(DATE = openxlsx::convertToDate(DATE)) %>%
-      rename(Date = DATE)
+      filter(!is.na(.data$DATE)) %>%
+      mutate(DATE = openxlsx::convertToDate(.data$DATE)) %>%
+      rename(Date = "DATE")
 
     # Better names and addition of remark
     names(metadata) <- str_to_sentence(names(metadata))
@@ -96,7 +102,7 @@ load_microplastics <- function(file_path, sheet_names) {
         values_to = "Value"
       ) %>%
       mutate(
-        Date = openxlsx::convertToDate(Date),
+        Date = openxlsx::convertToDate(.data$Date),
         Site = sheet_name
       )
 
@@ -105,8 +111,8 @@ load_microplastics <- function(file_path, sheet_names) {
 
     sheet_data <- sheet_data %>%
       pivot_wider(
-        names_from = Catégorie,
-        values_from = Value
+        names_from = "Catégorie",
+        values_from = "Value"
       )
 
     # Remove all empty strings at the end of the Type and Description columns
@@ -120,25 +126,24 @@ load_microplastics <- function(file_path, sheet_names) {
     names(sheet_data) <- str_to_sentence(names(sheet_data))
 
     data <- bind_rows(data, sheet_data)
-    data_view <<- data
   }
 
   # Transform as factor Annee, Saison, Site and specify levels as order of seasons for seasons.
   # Then sort by Year, Season and Site.
   data <- data %>%
     mutate(across(where(is.character), ~ na_if(., "NA"))) %>%
-    mutate(across(c(Annee, Saison, Site), as.factor)) %>%
-    mutate(Saison = factor(Saison, levels = c("Printemps", "Eté", "Automne", "Hiver"))) %>%
-    arrange(Annee, Saison, Site)
+    mutate(across(c("Annee", "Saison", "Site"), as.factor)) %>%
+    mutate(Saison = factor(.data$Saison, levels = c("Printemps", "Eté", "Automne", "Hiver"))) %>%
+    arrange("Annee", "Saison", "Site")
 
   # Convert Meso, Micro and total to numeric and create normalised columns of microplastics/100m
   # of coastal
   data <- data %>%
-    mutate(across(c(Meso_5mm, Micro_1mm, Total), as.numeric)) %>%
+    mutate(across(c("Meso_5mm", "Micro_1mm", "Total"), as.numeric)) %>%
     mutate(
-      Meso_normalise = Meso_5mm / largeur_transect * 100,
-      Micro_normalise = Micro_1mm / largeur_transect * 100,
-      Total_normalise = Total / largeur_transect * 100
+      Meso_normalise = .data$Meso_5mm / largeur_transect * 100,
+      Micro_normalise = .data$Micro_1mm / largeur_transect * 100,
+      Total_normalise = .data$Total / largeur_transect * 100
     ) %>%
     mutate(across(where(is.numeric), ~ ifelse(is.nan(.x), NA, .x)))
 }
