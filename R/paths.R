@@ -42,6 +42,7 @@ with(paths_env, {
 
   # Figures ----
   output_timeseries <- "output/timeseries/"
+  output_mostcommon <- "output/mostcommon/"
 })
 
 # Create folders if missing ----
