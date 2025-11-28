@@ -1,8 +1,7 @@
 # riparuR
 
-<img src="quarto/mare_vivu.jpg" width="100">
-![](quarto/mare_vivu.jpg)
-![](quarto/stareso.png)
+<img src="quarto/mare_vivu.jpg" width="300">
+<img src="quarto/stareso.png" width="300">
 
 ## Description 
 Ce projet contient les scripts de traitement des données du suivi RIPARU de l'Association [Mare Vivu](https://www.mare-vivu.org/).
