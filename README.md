@@ -92,5 +92,5 @@ Gestion de projet RIPARU :
 - Lea Bourglan (2022-2024) - Mare Vivu
 - Céline Sénécaut (2024-2025) - Mare Vivu
 
-Architecture et code R : 
+Analyse - architecture et code R : 
 - Aubin Woehrel - STARESO
