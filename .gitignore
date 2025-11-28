@@ -7,7 +7,7 @@
 .RDataTmp
 
 # VScode
-.vscode
+.vscode/
 
 # User-specific files
 .Ruserdata
