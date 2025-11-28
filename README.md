@@ -1,5 +1,6 @@
 # riparuR
 
+<img src="quarto/mare_vivu.jpg" width="100">
 ![](quarto/mare_vivu.jpg)
 ![](quarto/stareso.png)
 
