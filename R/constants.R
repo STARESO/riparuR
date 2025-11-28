@@ -14,3 +14,26 @@
 #' =============================================================================
 
 largeur_transect <- 2.5
+
+sites_macrodechets <- c(
+  "Alisu",
+  "Barcaghju",
+  # "Embouchure Nord Golo",
+  "Ferringule",
+  "La Roya",
+  "Lozari",
+  "Macinaghju",
+  "Pietracorbara",
+  "Saleccia"
+)
+
+sites_microplastiques <- c(
+  "Barcaghju",
+  "Ferringule",
+  "La Roya",
+  "L'Ostriconi",
+  "Lozari",
+  "Macinaghju",
+  "Pietracorbara",
+  "Saleccia"
+)

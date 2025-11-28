@@ -38,7 +38,7 @@ library("echarts4r")
 
 ## Source paths ----
 source("R/paths.R")
-source("R/fct_load_microplastics.R")
+source("R/constants.R")
 
 ## Loading data ----
 macrodechets_general <- readRDS(paths$processed_macrodechets_general)
@@ -59,7 +59,6 @@ typologie_sites <- readRDS(paths$processed_typologie_sites)
 # Filière REP ----
 
 # Fast data check
-
 
 ## Preparing data ----
 
@@ -93,19 +92,7 @@ unique(macrodechets_nb_filt$categorie_specifique)
 
 # Filter data by keeping sites usable for time series
 macrodechets_nb_filt <- macrodechets_nb_filt %>%
-  filter(
-    site %in% c(
-      "Alisu",
-      "Barcaghju",
-      "Embouchure Nord Golo",
-      "Ferringule",
-      "La Roya",
-      "Lozari",
-      "Pietracorbara",
-      "Saleccia",
-      "Macinaghju"
-    )
-  )
+  filter(site %in% sites_macrodechets)
 
 unique(macrodechets_nb_filt$site)
 
