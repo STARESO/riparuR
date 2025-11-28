@@ -39,6 +39,9 @@ with(paths_env, {
   processed_macrodechets_nb_csv <- "data/processed/riparu_macrodechets_counts.csv"
   processed_macrodechets_essentiel_csv <- "data/processed/riparu_macrodechets_essential.csv"
   processed_typologie_sites_csv <- "data/processed/riparu_typologie_sites.csv"
+
+  # Figures ----
+  output_timeseries <- "output/timeseries/"
 })
 
 # Create folders if missing ----

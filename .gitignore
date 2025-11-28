@@ -10,6 +10,7 @@
 .Ruserdata
 data/
 figures/
+output/
 
 # Example code in package build process
 *-Ex.R
