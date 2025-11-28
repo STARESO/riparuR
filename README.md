@@ -4,7 +4,7 @@
 Ce projet contient les scripts de traitement des données du suivi RIPARU de l'Association [Mare Vivu](https://www.mare-vivu.org/).
 
 ## Contexte
-Le projet **RIPARU** (Recherche Intégrée pour la Prévention en Amont des Résidus plastiqUes) a pour objectif de caractériser les déchets échoués sur les plages de Corse au sein du Parc Naturel Marin du Cap Corse et de l'Agriate (PNMCCA) afin de notamment caractériser les plages par leurs compositions en macrodéchets et en microplastiques. Il rassemble un grand nombre de plages suivies, dont quelques unes suivies régulièrement.
+Le projet **RIPARU** (Recherche Intégrée pour la Prévention en Amont des Résidus plastiqUes) a pour objectif de caractériser les déchets échoués sur les plages de Corse au sein du Parc Naturel Marin du Cap Corse et de l'Agriate (PNMCCA) afin de notamment caractériser les plages par leurs compositions en macrodéchets et en microplastiques. Il rassemble un grand nombre de plages suivies en Corse (principalement Haute-Corse), dont quelques unes suivies régulièrement dans l'enceinte du PNMCCA.
 
 ### Macrodéchets
 Les prélèvements de macrodéchets sont effectués aux **4 saisons** de l'année et sur **7 sites** depuis 2022. Les campagnes permettent de collecter et d'identifier le plus précisément possible les déchets. Les plages concernées par les collectes régulières de macrodéchets sont :
