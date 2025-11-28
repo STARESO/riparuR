@@ -1,5 +1,8 @@
 # riparuR
 
+![](quarto/mare_vivu.jpg)
+![](quarto/stareso.png)
+
 ## Description 
 Ce projet contient les scripts de traitement des données du suivi RIPARU de l'Association [Mare Vivu](https://www.mare-vivu.org/).
 
@@ -31,7 +34,7 @@ Les données de dénombrement par type de déchets sont ensuite saisies sur la p
 
 ### Microplastiques
 
-De manière similaire aux macrodéchets, les **microplastiques** sont collectés sur 8 plages aux 4 saisons de l'année depuis 2022. Lors du cas de plages aux collectes comportant à la fois les microplastiques et les macrodéchets, les prélèvements sont réalisés à la même journée. Les plages concernées par les collectes de microplastiques sont :
+De manière similaire aux macrodéchets, les **microplastiques** sont collectés sur 8 plages aux 4 saisons de l'année depuis 2022. Lors du cas de plages aux collectes comportant à la fois les microplastiques et les macrodéchets, les prélèvements sont réalisés à la même journée. Les plages concernées par les collectes régulières de microplastiques sont :
 
 -   Barcaghju
 -   Ferringule
@@ -83,11 +86,11 @@ Les autres fichiers et dossiers à la racine du projet correpondent aux utilitai
 ## Contributeurs 
 
 Création du projet RIPARU : 
-- Pierre-Ange Guidicelli
+- Pierre-Ange Guidicelli - Mare Vivu
 
 Gestion de projet RIPARU : 
-- Lea Bourglan (2022-2024)
-- Céline Sénécaut (2024-2025)
+- Lea Bourglan (2022-2024) - Mare Vivu
+- Céline Sénécaut (2024-2025) - Mare Vivu
 
 Architecture et code R : 
-- Aubin Woehrel
+- Aubin Woehrel - STARESO
