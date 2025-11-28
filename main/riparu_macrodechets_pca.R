@@ -1,8 +1,7 @@
 #' ---
-#' title : "RIPARU - Macrodéchêts PCA"
+#' title : "RIPARU - Macrodéchets PCA"
 #' author : Aubin Woehrel
 #' date : 2024-09-26
-#' version : 1.0
 #' ---
 #'
 #' =============================================================================
