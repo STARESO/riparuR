@@ -6,10 +6,11 @@
 .RData
 .RDataTmp
 
+# VScode
+.vscode
+
 # User-specific files
 .Ruserdata
-data/
-figures/
 output/
 
 # Example code in package build process
