@@ -61,7 +61,6 @@ typologie_sites <- readRDS(paths$processed_typologie_sites)
 # Fast data check
 
 ## Preparing data ----
-
 t1 <- macrodechets_nb %>%
   select(annee, date, site) %>%
   distinct() %>%
