@@ -15,6 +15,7 @@
 
 # Libraries ----
 library("magrittr")
+source("R/paths.R")
 
 #' Main Function ----
 dechets_wordcloud <- function(
@@ -24,7 +25,8 @@ dechets_wordcloud <- function(
   graph_size = 0.5,
   background_color = "#e7e4e4",
   text_color = "random-dark",
-  rotate_ratio = 1
+  rotate_ratio = 1,
+  save_name = NULL
 ) {
   # In case of lack of dataset entry
   if (is.null(dechet_data)) {
@@ -38,7 +40,7 @@ dechets_wordcloud <- function(
   total_objets <- sum(macro_wordcloud$total_100m)
   total_objets_transfo <- sum(macro_wordcloud$total_transfo)
 
-  macro_wordcloud %>%
+  wordcloud00 <- macro_wordcloud %>%
     dplyr::mutate(
       freq = total_100m / total_objets,
       freq_transfo = total_transfo / total_objets_transfo
@@ -52,4 +54,16 @@ dechets_wordcloud <- function(
       color = text_color,
       rotateRatio = rotate_ratio
     )
+
+  htmlwidgets::saveWidget(wordcloud00, "tmp.html", selfcontained = FALSE)
+  # Use webshot to capture the HTML as an image
+  webshot(
+    "tmp.html",
+    file = paste0(paths$output_mostcommon, save_name),
+    delay = 12,
+    vwidth = 1500,
+    vheight = 1500
+  )
+
+  return(paste0("Fichier exporté au chemin ", paste0(paths$output_mostcommon, save_name)))
 }
