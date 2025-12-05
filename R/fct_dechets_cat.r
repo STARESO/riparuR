@@ -15,7 +15,13 @@
 #' =============================================================================
 
 #' Main function ----
-dechets_cat <- function(categorie_sub_sel, sites_selected = NULL) {
+dechets_cat <- function(
+  categorie_sub_sel, # selected sub category (ex : REP, Marque, ...)
+  sites_selected = NULL, # In case of specific list of sites
+  categorie_spe_sel = NULL, # selection of specific categories
+  sum_by_cat = TRUE # For summarizing data per
+) {
+  # Conditional checks
   if (is.null(sites_selected)) {
     stop("No site selection defined, please choose 'all' or selected sites")
   }
@@ -24,6 +30,7 @@ dechets_cat <- function(categorie_sub_sel, sites_selected = NULL) {
     stop("No category selected, please select one")
   }
 
+  # Selection of sites
   if (length(sites_selected) == 1) {
     if (sites_selected == "all") {
       macrodechets_selected <- macrodechets_nb
@@ -33,26 +40,42 @@ dechets_cat <- function(categorie_sub_sel, sites_selected = NULL) {
       filter(site %in% sites_selected)
   }
 
+  # Filtering selected sub category
   macrodechets_selected <- macrodechets_selected %>%
-    filter(categorie_sub == categorie_sub_sel) %>%
-    group_by(categorie_specifique) %>%
-    summarize(total_100m = sum(valeur_100m, na.rm = TRUE)) %>%
-    mutate(total_100m = round(total_100m, 2)) %>%
-    arrange(desc(total_100m)) %>%
-    filter(total_100m > 0) %>%
-    mutate(level = row_number()) %>%
-    arrange(level) %>%
-    mutate(print_name = paste(level, ":", str_replace_all(categorie_specifique, "_", " "))) %>%
-    mutate(
-      color = case_when(
-        level <= 10 ~ "#e9770d",
-        level <= 20 & level > 10 ~ "orange",
-        TRUE ~ "#4da2db"
+    filter(categorie_sub == categorie_sub_sel)
+
+  # In case of specific category selection
+  if (!is.null(categorie_spe_sel)) {
+    macrodechets_selected <- macrodechets_selected %>%
+      filter(categorie_specifique %in% categorie_spe_sel)
+  }
+
+  # In case of summarizing per date for each specific category
+  if (sum_by_cat) {
+    macrodechets_selected <- macrodechets_selected %>%
+      group_by(categorie_specifique) %>%
+      summarize(total_100m = sum(valeur_100m, na.rm = TRUE)) %>%
+      mutate(total_100m = round(total_100m, 2)) %>%
+      arrange(desc(total_100m)) %>%
+      filter(total_100m > 0) %>%
+      mutate(level = row_number()) %>%
+      arrange(level) %>%
+      mutate(print_name = paste(level, ":", str_replace_all(categorie_specifique, "_", " "))) %>%
+      mutate(
+        color = case_when(
+          level <= 10 ~ "#e9770d",
+          level <= 20 & level > 10 ~ "orange",
+          TRUE ~ "#4da2db"
+        )
       )
-    )
 
-  total_selected <- sum(macrodechets_selected$total_100m)
+    total_selected <- sum(macrodechets_selected$total_100m)
+    macrodechets_selected <- macrodechets_selected %>%
+      dplyr::mutate(freq = total_100m / total_selected)
+  } else { # Condition of keeping observations per date
+    macrodechets_selected <- macrodechets_selected %>%
+      mutate(categorie_specifique = paste(str_replace_all(categorie_specifique, "_", " ")))
+  }
 
-  macrodechets_selected <- macrodechets_selected %>%
-    dplyr::mutate(freq = total_100m / total_selected)
+  return(macrodechets_selected)
 }
