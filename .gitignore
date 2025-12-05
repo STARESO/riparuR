@@ -52,5 +52,6 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
-
+# Temp files
 tmp_files/
+*.html
