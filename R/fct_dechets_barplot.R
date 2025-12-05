@@ -81,5 +81,5 @@ dechets_barplot <- function(
     limitsize = FALSE
   )
 
-  return(paste0("Fichier exporté au chemin ", paste0(output_folder, "/", save_name)))
+  return(paste0("File saved at path ", paste0(output_folder, "/", save_name)))
 }
