@@ -19,21 +19,26 @@ source("R/paths.R")
 
 #' Main Function ----
 dechets_wordcloud <- function(
-  dechet_data = NULL, # data
+  dechets_data = NULL, # data
   to_remove = NULL, # variables to remove from categorie_specifique (vector)
   offset = 10,
   graph_size = 0.5,
   background_color = "#e7e4e4",
   text_color = "random-dark",
   rotate_ratio = 1,
+  subcat = NULL,
   save_name = NULL
 ) {
-  # In case of lack of dataset entry
-  if (is.null(dechet_data)) {
+  # Missing checks
+  if (is.null(dechets_data)) {
     stop("No data, please enter dataset with parameter dechet_data")
   }
 
-  macro_wordcloud <- dechet_data %>%
+  if (is.null(subcat)) {
+    stop("No sub category specified, please enter the one selected")
+  }
+
+  macro_wordcloud <- dechets_data %>%
     filter(!categorie_specifique %in% to_remove) %>%
     dplyr::mutate(total_transfo = sqrt(total_100m + offset))
 
@@ -57,13 +62,20 @@ dechets_wordcloud <- function(
 
   htmlwidgets::saveWidget(wordcloud00, "tmp.html", selfcontained = FALSE)
   # Use webshot to capture the HTML as an image
+
+  output_folder <- paste0(paths$output_mostcommon, subcat)
+
+  if (!dir.exists(output_folder)) {
+    dir.create(output_folder, recursive = TRUE)
+  }
+
   webshot(
     "tmp.html",
-    file = paste0(paths$output_mostcommon, save_name),
+    file = paste0(output_folder, "/", save_name),
     delay = 12,
     vwidth = 1500,
     vheight = 1500
   )
 
-  return(paste0("Fichier exporté au chemin ", paste0(paths$output_mostcommon, save_name)))
+  return(paste0("Fichier exporté au chemin ", paste0(output_folder, "/", save_name)))
 }
