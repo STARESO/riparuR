@@ -55,3 +55,5 @@ rsconnect/
 # Temp files
 tmp_files/
 *.html
+# Any temp file
+~*
