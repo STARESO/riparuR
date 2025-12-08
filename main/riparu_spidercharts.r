@@ -261,22 +261,27 @@ gdend <- ggplot() +
   geom_segment(
     data = seg_col,
     aes(x = x, y = y, xend = xend, yend = yend),
-    linewidth = 0.7,
+    linewidth = 2.5,
     lineend = "round",
     colour = seg_col$col
   ) +
   geom_point(
     data = lab,
     aes(x = x, y = ring_y, colour = factor(cluster)),
-    size = 2.2
+    size = 4
   ) +
   geom_text(
     data = lab2,
     aes(
-      x = x, y = text_y, label = label, angle = angle, hjust = hjust,
+      x = x,
+      y = text_y,
+      label = label,
+      angle = angle,
+      hjust = hjust,
       colour = factor(cluster)
     ),
-    size = 3
+    size = 6,
+    fontface = "bold"
   ) +
   scale_colour_manual(values = pal) +
   coord_polar(theta = "x", start = 0, clip = "off") +
@@ -292,7 +297,7 @@ ggsave(
   plot = gdend,
   width = 1000,
   height = 1000,
-  scale = 2.75,
+  scale = 5,
   filename = paste0(paths$output_spider, "circular_dendogram.jpg"),
   units = "px",
   dpi = "print",
