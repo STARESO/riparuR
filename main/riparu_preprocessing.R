@@ -45,47 +45,27 @@ source("R/fct_load_microplastics.R")
 
 # Typologie sites ----
 
-typologie_sites <- read_excel(paths$raw_typologie_sites, sheet = "RIPARU_Better")
+typologie_sites <- read_excel(paths$raw_typologie_sites, sheet = "typologies")
 
 typologie_sites <- typologie_sites %>%
-  separate(
-    `Transect 100m début`,
-    c("Latitude_Debut", "Longitude_Debut"),
-    sep = ",",
-    remove = TRUE
-  ) %>%
-  separate(
-    `Transect 100m fin`,
-    c("Latitude_Fin", "Longitude_Fin"),
-    sep = ",",
-    remove = TRUE
+  separate(transect_debut, c("latitude_debut", "longitude_debut"), sep = ",", remove = TRUE) %>%
+  separate(transect_fin, c("latitude_fin", "longitude_fin"), sep = ",", remove = TRUE) %>%
+  mutate(
+    latitude_debut = gsub("[^0-9.]", "", latitude_debut),
+    longitude_debut = gsub("[^0-9.]", "", longitude_debut),
+    latitude_fin = gsub("[^0-9.]", "", latitude_fin),
+    longitude_fin = gsub("[^0-9.]", "", longitude_fin)
   ) %>%
   mutate(
-    Latitude_Debut = gsub("[^0-9.]", "", Latitude_Debut),
-    Longitude_Debut = gsub("[^0-9.]", "", Longitude_Debut),
-    Latitude_Fin = gsub("[^0-9.]", "", Latitude_Fin),
-    Longitude_Fin = gsub("[^0-9.]", "", Longitude_Fin)
-  ) %>%
-  mutate(
-    Latitude_Debut = as.numeric(Latitude_Debut),
-    Longitude_Debut = as.numeric(Longitude_Debut),
-    Latitude_Fin = as.numeric(Latitude_Fin),
-    Longitude_Fin = as.numeric(Longitude_Fin)
+    latitude_debut = as.numeric(latitude_debut),
+    longitude_debut = as.numeric(longitude_debut),
+    latitude_fin = as.numeric(latitude_fin),
+    longitude_fin = as.numeric(longitude_fin)
   )
 
 # Reposition in the order : Longitude_Debut, Latitude_Debut, Longitude_Fin, Latitude_Fin
 typologie_sites <- typologie_sites %>%
-  select(9, 8, 11, 10, 1:7, 12:dim(typologie_sites)[2])
-
-# Lower all column names and pass to ascii
-typologie_sites <- typologie_sites %>%
-  rename_with(
-    .fn = function(x) {
-      stringi::stri_trans_general(x, "Latin-ASCII")
-    },
-    .cols = everything()
-  ) %>%
-  rename_all(stringr::str_to_lower)
+  relocate(longitude_debut, latitude_debut, longitude_fin, latitude_fin, .before = everything())
 
 # Structure check
 skimr::skim(typologie_sites)
@@ -306,8 +286,7 @@ macrodechets <- macrodechets %>%
       nom_zone == "La stagnola" ~ "La Stagnola",
       nom_zone == "Stagnola" ~ "La Stagnola",
       nom_zone == "L'ostriconi" ~ "L'Ostriconi",
-      nom_zone == "Plage de pietracorbara" ~ "Petracurbara",
-      nom_zone == "Plage de saleccia" ~ "Saleccia",
+      nom_zone == "Pietracorbara" ~ "Petracurbara",
       nom_zone == "Punta di capineru" ~ "Punta di Capineru",
       nom_zone == "La marana" ~ "La Marana",
       nom_zone == "Lido de la marana" ~ "Lido de la Marana",
@@ -442,12 +421,12 @@ macrodechets_longer <- macrodechets_longer %>%
   mutate(
     across(c(categorie, categorie_sub), str_to_lower),
     categorie_specifique = str_to_sentence(categorie_specifique)
-  )
+  ) %>%
+  mutate(valeur_100m = (valeur / largeur_transect) / longueur_lineaire * 100)
 
 # Separating the longer into 2 data sets : one with categorie == Nb and one with the rest
 macrodechets_counts <- macrodechets_longer %>%
   filter(categorie == "nb") %>%
-  mutate(valeur_100m = (valeur / largeur_transect) / longueur_lineaire * 100) %>%
   select(
     id_releve:type,
     categorie,
@@ -468,7 +447,8 @@ macrodechets_general <- macrodechets_longer %>%
     categorie,
     categorie_sub,
     categorie_specifique,
-    valeur
+    valeur,
+    valeur_100m
   )
 
 # Saving processed data ----
