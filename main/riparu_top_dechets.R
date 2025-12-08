@@ -20,10 +20,6 @@ rm(list = ls())
 
 ## Library imports -----
 
-# Data import
-library("openxlsx")
-library("readxl")
-
 # Data tidying
 library("dplyr")
 library("tidyr")
