@@ -20,9 +20,9 @@ paths_env <- new.env()
 # Populating paths in the path environment
 with(paths_env, {
   # Raw data ----
-  raw_microplastiques <- "data/raw/categorisation_microplastiques_riparu_2025.xlsx"
-  raw_macrodechets <- "data/raw/data_zds_2025.xlsx"
-  raw_typologie_sites <- "data/raw/typologie_sites.xlsx"
+  raw_microplastiques <- "data/raw/riparu_categorisation_microplastiques_2025.xlsx"
+  raw_macrodechets <- "data/raw/riparu_zds_2025.xlsx"
+  raw_typologie_sites <- "data/raw/riparu_typologie_sites.xlsx"
 
   # Processed data rds ----
   processed_microplastiques <- "data/processed/riparu_microplastiques.rds"
