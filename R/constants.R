@@ -23,7 +23,7 @@ sites_macrodechets <- c(
   "La Roya",
   "Lozari",
   "Macinaghju",
-  "Pietracorbara",
+  "Petracurbara",
   "Saleccia"
 )
 
@@ -31,9 +31,9 @@ sites_microplastiques <- c(
   "Barcaghju",
   "Ferringule",
   "La Roya",
-  "L'Ostriconi",
+  "Ostriconi",
   "Lozari",
   "Macinaghju",
-  "Pietracorbara",
+  "Petracurbara",
   "Saleccia"
 )
