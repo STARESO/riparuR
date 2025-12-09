@@ -65,8 +65,8 @@ typologie_sites <- typologie_sites %>%
 # Reposition in the order : Longitude_Debut, Latitude_Debut, Longitude_Fin, Latitude_Fin
 typologie_sites <- typologie_sites %>%
   relocate(longitude_debut, latitude_debut, longitude_fin, latitude_fin, .before = everything()) %>%
-  mutate(transect_surface = 100 * transect_largeur) %>% # 100 mètres de longueur théorique * largeur plage
-  relocate(transect_surface, .after = transect_largeur)
+  mutate(transect_surface = 100 * plage_largeur) %>% # 100 mètres de longueur théorique * largeur plage
+  relocate(transect_surface, .after = plage_largeur)
 # Structure check
 skimr::skim(typologie_sites)
 
@@ -301,21 +301,29 @@ macrodechets <- macrodechets %>%
   ) %>%
   select(id_releve, date, saison, annee, site, commentaire, everything())
 
+
+# Checking surface and width of OG dataset
 macrodechets <- typologie_sites %>%
-  select(site, transect_surface, transect_largeur) %>%
+  select(site, transect_surface, plage_largeur, plage_longueur) %>%
   left_join(macrodechets, ., by = join_by("site"))
+
+# Selecting only Mare Vivu data
+macrodechets <- macrodechets %>%
+  filter(nom_structure == "Mare Vivu")
 
 # Big differences in ZDS surface vs theoretical transect !
 # Need to keep theoretical as best here
 t5 <- macrodechets %>%
-  select(site, transect_surface, surface)
+  select(site, date, transect_surface, surface, plage_longueur, longueur_lineaire, nom_structure)
 
+# Keeping best info from typologie instead of original dataset
 macrodechets <- macrodechets %>%
   mutate(
     transect_surface = ifelse(!is.na(transect_surface), transect_surface, surface),
-    transect_largeur = ifelse(!is.na(transect_largeur), transect_largeur, NA)
+    transect_largeur = ifelse(!is.na(plage_largeur), plage_largeur, NA)
   ) %>%
-  select(-surface)
+  select(-c("surface", "plage_longueur", "plage_largeur")) %>%
+  relocate(transect_largeur, transect_surface, .after = longueur_lineaire)
 
 t6 <- macrodechets %>%
   select(site, transect_surface, transect_largeur) %>%
@@ -329,6 +337,7 @@ macrodechets <- macrodechets %>%
   mutate(
     volume_total_m2 = volume_total / transect_surface, # division surface pour valeur/m2
     poids_total_m2 = poids_total / transect_surface # division surface pour valeur/m2
+    # recompute _100m if different values of transect length in reality
   ) %>%
   select(
     1:match("volume_total", names(.)),
@@ -342,7 +351,6 @@ macrodechets <- macrodechets %>%
   mutate(across(c("niveau_carac", "autres_dechets"), function(x) {
     as.numeric(x)
   }))
-
 
 # Same for the typologie_sites dataset, where Transect 100m début and Transect 100 fin correspond
 # to the coordinates of the beginning and the end of a transect. 4 columns are obtained with
@@ -404,19 +412,23 @@ macrodechets_longer <- macrodechets_longer %>%
   mutate(
     across(c(categorie, categorie_sub), str_to_lower),
     categorie_specifique = str_to_sentence(categorie_specifique)
-  ) %>%
-  mutate(valeur_100m = (valeur / largeur_transect) / longueur_lineaire * 100)
+  )
+
+# Following is true if transect is not 100 m long so it compensates for absence. But not changed
+# %>% mutate(valeur_100m = (valeur / largeur_transect) / longueur_lineaire * 100)
 
 # Separating the longer into 2 data sets : one with categorie == Nb and one with the rest
 macrodechets_counts <- macrodechets_longer %>%
   filter(categorie == "nb") %>%
+  mutate(valeur_m2 = valeur / transect_surface) %>%
   select(
     id_releve:type,
     categorie,
     categorie_sub,
     categorie_specifique,
     valeur,
-    valeur_100m
+    # valeur_100m,
+    valeur_m2
   ) %>%
   mutate(categorie_sub = case_when(
     categorie_sub %in% c("rep", "dcsmm") ~ toupper(categorie_sub),
@@ -430,8 +442,7 @@ macrodechets_general <- macrodechets_longer %>%
     categorie,
     categorie_sub,
     categorie_specifique,
-    valeur,
-    valeur_100m
+    valeur
   )
 
 # Saving processed data ----
