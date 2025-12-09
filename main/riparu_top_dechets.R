@@ -267,10 +267,6 @@ dechets_wordcloud(
   save_name = "macrodechets_wordcloud_sites_suivis.png"
 )
 
-
-
-
-
 # Wordcloud style tests ----
 ## Groupe ----
 ### Macrodechets groupe all sites ----

@@ -44,7 +44,6 @@ source("R/fct_load_microplastics.R")
 
 
 # Typologie sites ----
-
 typologie_sites <- read_excel(paths$raw_typologie_sites, sheet = "typologies")
 
 typologie_sites <- typologie_sites %>%
@@ -65,8 +64,9 @@ typologie_sites <- typologie_sites %>%
 
 # Reposition in the order : Longitude_Debut, Latitude_Debut, Longitude_Fin, Latitude_Fin
 typologie_sites <- typologie_sites %>%
-  relocate(longitude_debut, latitude_debut, longitude_fin, latitude_fin, .before = everything())
-
+  relocate(longitude_debut, latitude_debut, longitude_fin, latitude_fin, .before = everything()) %>%
+  mutate(transect_surface = 100 * transect_largeur) %>% # 100 mètres de longueur théorique * largeur plage
+  relocate(transect_surface, .after = transect_largeur)
 # Structure check
 skimr::skim(typologie_sites)
 
@@ -190,7 +190,6 @@ if (checks_macrodechets) {
   unique_values
 }
 
-
 ## Date, Year and Season ----
 macrodechets <- macrodechets %>%
   mutate(date = as.Date(date, format = "%Y/%m/%d")) %>%
@@ -285,7 +284,7 @@ macrodechets <- macrodechets %>%
       nom_zone == "La roya cesm" ~ "La Roya",
       nom_zone == "La stagnola" ~ "La Stagnola",
       nom_zone == "Stagnola" ~ "La Stagnola",
-      nom_zone == "L'ostriconi" ~ "L'Ostriconi",
+      nom_zone == "L'ostriconi" ~ "Ostriconi",
       nom_zone == "Pietracorbara" ~ "Petracurbara",
       nom_zone == "Punta di capineru" ~ "Punta di Capineru",
       nom_zone == "La marana" ~ "La Marana",
@@ -302,26 +301,42 @@ macrodechets <- macrodechets %>%
   ) %>%
   select(id_releve, date, saison, annee, site, commentaire, everything())
 
+macrodechets <- typologie_sites %>%
+  select(site, transect_surface, transect_largeur) %>%
+  left_join(macrodechets, ., by = join_by("site"))
+
+# Big differences in ZDS surface vs theoretical transect !
+# Need to keep theoretical as best here
+t5 <- macrodechets %>%
+  select(site, transect_surface, surface)
+
+macrodechets <- macrodechets %>%
+  mutate(
+    transect_surface = ifelse(!is.na(transect_surface), transect_surface, surface),
+    transect_largeur = ifelse(!is.na(transect_largeur), transect_largeur, NA)
+  ) %>%
+  select(-surface)
+
+t6 <- macrodechets %>%
+  select(site, transect_surface, transect_largeur) %>%
+  distinct()
+
 macrodechets <- macrodechets %>%
   rename(
     volume_total = global_volume_total,
     poids_total = global_poids_total
   ) %>%
   mutate(
-    volume_total_m2 = volume_total / surface,
-    poids_total_m2 = poids_total / surface,
-    volume_total_100m = (volume_total / largeur_transect) / longueur_lineaire * 100,
-    poids_total_100m = (volume_total / largeur_transect) * 100
+    volume_total_m2 = volume_total / transect_surface, # division surface pour valeur/m2
+    poids_total_m2 = poids_total / transect_surface # division surface pour valeur/m2
   ) %>%
   select(
     1:match("volume_total", names(.)),
     duree,
     volume_total,
     volume_total_m2,
-    volume_total_100m,
     poids_total,
     poids_total_m2,
-    poids_total_100m,
     everything()
   ) %>%
   mutate(across(c("niveau_carac", "autres_dechets"), function(x) {
@@ -329,43 +344,11 @@ macrodechets <- macrodechets %>%
   }))
 
 
-# Removing the Ostriconi site because its not part of the project
-# macrodechets <- macrodechets %>%
-#   filter(site != "L'Ostriconi")
-
 # Same for the typologie_sites dataset, where Transect 100m début and Transect 100 fin correspond
 # to the coordinates of the beginning and the end of a transect. 4 columns are obtained with
 # Latitude and Longitude for the beginning and the end of the transect. The latitude and longitude
 # are set at the beginning of the data set and inversed for the longitude being before the latitude
 # each time
-
-macrodechets_essentiel <- macrodechets %>%
-  # Select all the columns to 33 and then select all the columns containing "Global_volume"
-  # and "Global_poids" in their names
-  select(everything(), contains("global_volume")) %>%
-  pivot_longer(
-    cols = contains("global_volume"),
-    names_to = "type",
-    values_to = "volume_categorie"
-  ) %>%
-  # Remove the "Global_volume_" in the type column
-  mutate(type = str_remove(type, "global_volume_")) %>%
-  # Compute the volume_type per surface and per 100m
-  mutate(
-    volume_type_m2 = volume_categorie / surface,
-    volume_type_100m = volume_categorie / longueur_lineaire * 100
-  )
-
-# Compute the sum of all volume_categorie to verify that it is the same as the volume_total
-t <- macrodechets_essentiel %>%
-  group_by(date, saison, annee, site) %>%
-  summarise(volume_total_calcule = sum(volume_categorie, na.rm = TRUE)) %>%
-  ungroup() %>%
-  left_join(
-    macrodechets %>% select(date, saison, annee, site, volume_total),
-    by = c("date", "saison", "annee", "site")
-  ) %>%
-  mutate(comparison = volume_total_calcule == volume_total)
 
 ## Creating longer dataset from riparu macrodechets ----
 
@@ -458,7 +441,6 @@ saveRDS(microplastiques, paths$processed_microplastiques)
 saveRDS(microplastiques_total, paths$processed_microplastiques_total)
 saveRDS(macrodechets_general, paths$processed_macrodechets_general)
 saveRDS(macrodechets_counts, paths$processed_macrodechets_nb)
-saveRDS(macrodechets_essentiel, paths$processed_macrodechets_essentiel)
 saveRDS(typologie_sites, paths$processed_typologie_sites)
 
 ## CSV files ----
@@ -466,5 +448,4 @@ saveRDS(microplastiques, paths$processed_microplastiques_csv)
 saveRDS(microplastiques_total, paths$processed_microplastiques_total_csv)
 saveRDS(macrodechets_general, paths$processed_macrodechets_general_csv)
 saveRDS(macrodechets_counts, paths$processed_macrodechets_nb_csv)
-saveRDS(macrodechets_essentiel, paths$processed_macrodechets_essentiel_csv)
 saveRDS(typologie_sites, paths$processed_typologie_sites_csv)
