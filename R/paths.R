@@ -29,7 +29,6 @@ with(paths_env, {
   processed_microplastiques_total <- "data/processed/riparu_microplastiques_total.rds"
   processed_macrodechets_general <- "data/processed/riparu_macrodechets_general.rds"
   processed_macrodechets_nb <- "data/processed/riparu_macrodechets_nb.rds"
-  processed_macrodechets_essentiel <- "data/processed/riparu_macrodechets_essentiel.rds"
   processed_typologie_sites <- "data/processed/riparu_typologie_sites.rds"
 
   # Processed data csv ----
@@ -37,7 +36,6 @@ with(paths_env, {
   processed_microplastiques_total_csv <- "data/processed/riparu_microplastiques_total.csv"
   processed_macrodechets_general_csv <- "data/processed/riparu_macrodechets_general.csv"
   processed_macrodechets_nb_csv <- "data/processed/riparu_macrodechets_nb.csv"
-  processed_macrodechets_essentiel_csv <- "data/processed/riparu_macrodechets_essentiel.csv"
   processed_typologie_sites_csv <- "data/processed/riparu_typologie_sites.csv"
 
   # Figures ----

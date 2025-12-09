@@ -40,7 +40,6 @@ source("R/constants.R")
 ## Data imports ----
 microplastics <- readRDS(paths$processed_microplastiques)
 microplastics_total <- readRDS(paths$processed_microplastiques_total)
-macrodechets <- readRDS(paths$processed_macrodechets_essentiel)
 typologie_sites <- readRDS(paths$processed_typologie_sites)
 
 # Transforming datasets to sf format for map plotting
