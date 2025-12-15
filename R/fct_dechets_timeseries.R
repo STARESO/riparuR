@@ -13,13 +13,13 @@
 #'
 #' =============================================================================
 
-
 dechets_timeseries <- function(
   dechets_data = NULL,
   subcat = NULL,
   save_name = NULL,
   points = TRUE,
   log_scale = FALSE,
+  common_scale = FALSE,
   smooth = FALSE,
   span = 0.6,
   palette_selected = NULL,
@@ -41,12 +41,34 @@ dechets_timeseries <- function(
   if (is.null(date_limits)) {
     warning("Date limits are not set. Using predefined date limits.")
     date_limits <- c(
-      as.Date("2022-01-01"),
+      as.Date("2021-12-01"),
       as.Date(paste0(max(dechets_data$annee)), "-12-31")
     )
   }
 
-  ggdechets <- ggplot(dechets_data, aes(x = date, y = valeur_100m, color = categorie_specifique))
+  if (common_scale) {
+    ymin <- 0
+    ymax <- max(dechets_data$valeur_m2)
+  }
+
+  season_label <- function(x) {
+    m <- lubridate::month(x)
+    y <- lubridate::year(x)
+
+    season <- dplyr::case_when(
+      m %in% 3:5 ~ "Printemps",
+      m %in% 6:8 ~ "Été",
+      m %in% 9:11 ~ "Automne",
+      TRUE ~ "Hiver"
+    )
+
+    # Winter: Jan-Feb belong to previous year (winter started in Dec)
+    season_year <- ifelse(season == "Hiver" & m %in% c(1, 2), y - 1, y)
+
+    paste0(season_year, " – ", season)
+  }
+
+  ggdechets <- ggplot(dechets_data, aes(x = date, y = valeur_m2, color = categorie_specifique, label = date))
 
   # Showing points
   if (points) {
@@ -64,11 +86,11 @@ dechets_timeseries <- function(
   # Rest of plot
   ggdechets <- ggdechets +
     facet_wrap(~site, scales = "free_y", axes = "all") +
-    scale_x_date(date_breaks = date_breaks, limits = date_limits) +
+    scale_x_date(date_breaks = date_breaks, limits = date_limits, labels = season_label) +
     scale_color_manual(values = palette_selected) +
     theme_pubr() +
     theme(
-      axis.text.x = element_text(angle = 90, hjust = 1),
+      axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.25),
       legend.position = "right"
     ) +
     labs(
@@ -81,6 +103,11 @@ dechets_timeseries <- function(
   if (log_scale) {
     ggdechets <- ggdechets + scale_y_log10()
     save_name <- paste0(save_name, "_logscale")
+  }
+
+  if (common_scale) {
+    ggdechets <- ggdechets + scale_y_continuous(limits = c(ymin, ymax))
+    save_name <- paste0(save_name, "_commonscale")
   }
 
   # Output folder

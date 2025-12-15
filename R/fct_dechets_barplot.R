@@ -32,17 +32,17 @@ dechets_barplot <- function(
   # Scale log conditional changes
   if (scale_log) {
     dechets_data <- dechets_data %>%
-      filter(total_100m > 1)
+      filter(total_m2 > 1)
 
     save_name <- paste0(save_name, "_logscale")
   }
 
   # Barplot
   barplot_selected <- dechets_data %>%
-    # filter(total_100m >= 10) %>%
+    # filter(total_m2 >= 10) %>%
     ggplot(., aes(
-      x = reorder(print_name, -total_100m),
-      y = total_100m,
+      x = reorder(print_name, -total_m2),
+      y = total_m2,
       fill = level
     )) +
     geom_bar(stat = "identity") +
@@ -53,7 +53,7 @@ dechets_barplot <- function(
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
       legend.position = "none"
     ) +
-    labs(x = "groupes", y = "abondance normalisée (sur 100m)")
+    labs(x = "groupes", y = "abondance normalisée (par m2)")
 
   # If log scale
   if (scale_log) {

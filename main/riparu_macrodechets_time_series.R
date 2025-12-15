@@ -61,8 +61,8 @@ cat_types <- macrodechets_nb %>%
 
 # Filter all dates of 2022 and after (in case of previous tests)
 macrodechets_nb <- macrodechets_nb %>%
-  filter(annee >= 2022)
-
+  filter(annee >= 2022) %>%
+  mutate(mois = lubridate::month(date))
 
 # REP ----
 selection_rep <- c(
@@ -106,6 +106,22 @@ dechets_timeseries(
   palette_selected = palette_rep
 )
 
+dechets_timeseries(
+  dechets_data = macrodechets_rep,
+  subcat = "rep",
+  save_name = "macrodechets_counts",
+  point = TRUE,
+  log_scale = FALSE,
+  common_scale = TRUE,
+  smooth = FALSE,
+  palette_selected = palette_rep
+)
+
+macrodechets_rep %>%
+  filter(site == "Alisu") %>%
+  arrange(date) %>%
+  pull(date) %>%
+  unique()
 ## Macrodechets REP count with smooth ----
 
 # Looping on a series of different spans for visual choices
@@ -211,7 +227,6 @@ for (spanwant in seq(from = 0.4, to = 0.9, by = 0.1)) {
     palette_selected = palette_sect
   )
 }
-
 
 # Standard (anciennement DCSMM) ----
 selection_standard <- c(

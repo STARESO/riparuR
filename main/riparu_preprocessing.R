@@ -309,7 +309,7 @@ macrodechets <- typologie_sites %>%
 
 # Selecting only Mare Vivu data
 macrodechets <- macrodechets %>%
-  filter(nom_structure == "Mare Vivu")
+  filter(nom_structure == "Mare Vivu" | site == "Lozari") # Lozari pas suivi par Mare Vivu
 
 # Big differences in ZDS surface vs theoretical transect !
 # Need to keep theoretical as best here

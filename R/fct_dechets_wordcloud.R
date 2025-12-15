@@ -38,16 +38,18 @@ dechets_wordcloud <- function(
     stop("No sub category specified, please enter the one selected")
   }
 
+  # Transformation of values for better relative reprensentation,
+  # limiting the effect of big values
   macro_wordcloud <- dechets_data %>%
     filter(!categorie_specifique %in% to_remove) %>%
-    dplyr::mutate(total_transfo = sqrt(total_100m + offset))
+    dplyr::mutate(total_transfo = sqrt(total_m2 * 100 + offset)) # *100 since change of value on 100m to m2
 
-  total_objets <- sum(macro_wordcloud$total_100m)
+  total_objets <- sum(macro_wordcloud$total_m2)
   total_objets_transfo <- sum(macro_wordcloud$total_transfo)
 
   wordcloud00 <- macro_wordcloud %>%
     dplyr::mutate(
-      freq = total_100m / total_objets,
+      freq = total_m2 / total_objets,
       freq_transfo = total_transfo / total_objets_transfo
     ) %>%
     dplyr::select(print_name, freq_transfo) %>%

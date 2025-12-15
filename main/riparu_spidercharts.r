@@ -62,8 +62,6 @@ all_sites %in% unique(typologie_sites$site)
 typologie_spider <- typologie_sites %>%
   select(
     site,
-    substrat_galets,
-    substrat_sable_fin,
     acces_vehicule,
     ppuu_distribution,
     riviere_distance,
@@ -72,31 +70,32 @@ typologie_spider <- typologie_sites %>%
     port_distance,
     step_distance
   ) %>%
-  mutate(across(where(is.numeric), ~ scales::rescale(., to = c(0, 1))))
+  mutate(across(contains("distance"), \(x) {
+    -x
+  })) %>%
+  mutate(across(where(is.numeric), ~ scales::rescale(., to = c(0, 1)))) %>%
+  rename_with(
+    ~ str_replace(.x, "distance", "proximité"),
+    contains("distance")
+  )
 
 typologie_spider[typologie_spider == "oui"] <- "1"
 typologie_spider[typologie_spider == "non"] <- "0"
 
 typologie_spider <- typologie_spider %>%
-  mutate(across(substrat_galets:ppuu_distribution, \(x) as.numeric(x))) %>%
+  mutate(across(acces_vehicule:ppuu_distribution, \(x) as.numeric(x))) %>%
   pivot_longer(cols = -site) %>%
   mutate(categorie = case_when(
-    name %in% c("substrat_galets", "substrat_sable_fin") ~ "substrat",
+    # name %in% c("substrat_galets", "substrat_sable_fin") ~ "substrat", # not anymore substrates
     name %in% c(
-      "riviere_distance",
-      "ville_distance",
+      "riviere_proximité",
+      "ville_proximité",
       "ville_habitants",
-      "port_distance",
-      "step_distance"
-    ) ~ "perturbations - extraplage",
-    TRUE ~ "perturbations - intraplage"
-  )) %>%
-  arrange(site, categorie, name) %>%
-  mutate(
-    categorie = as.factor(categorie),
-    name = factor(name, levels = unique(name))
-  )
-
+      "port_proximité",
+      "step_proximité"
+    ) ~ "Perturbations - extraplage",
+    TRUE ~ "Perturbations - intraplage"
+  ))
 
 ## Microplastiques total ----
 microplastiques_spider <- microplastiques_total %>%
@@ -104,27 +103,16 @@ microplastiques_spider <- microplastiques_total %>%
   summarize(meso_mean = mean(meso_normalise), micro_mean = mean(micro_normalise)) %>% # mean by season
   group_by(site) %>%
   summarize(mesoplastiques = sum(meso_mean), microplastiques = sum(micro_mean)) %>%
-  mutate(across(where(is.numeric), \(x) log(x))) %>%
-  mutate(across(where(is.numeric), ~ scales::rescale(., to = c(0.2, 1)))) %>%
+  mutate(across(where(is.numeric), \(x) log(x))) %>% # Log transfo for lesser visual effect
+  mutate(across(where(is.numeric), ~ scales::rescale(., to = c(0.2, 1)))) %>% # Rescaling to values < 1
   pivot_longer(cols = -site) %>%
-  mutate(categorie = "micromesoplastiques") %>%
+  mutate(categorie = "Microplastiques et Mésoplastiques") %>%
   ungroup()
 
 ## Macrodechets general ----
-macrodechets_spider <- macrodechets_general %>%
+macrodechets_spider_general <- macrodechets_general %>%
   filter(site %in% sites_macrodechets) %>%
-  filter(type %in% c(
-    "volume_total_100m",
-    "poids_total_100m"
-    # "global_pourcentage_plastique",
-    # "global_pourcentage_caoutchouc",
-    # "global_pourcentage_bois",
-    # "global_pourcentage_textile",
-    # "global_pourcentage_papier",
-    # "global_pourcentage_metal",
-    # "global_pourcentage_verre",
-    # "global_pourcentage_autre"
-  )) %>%
+  filter(type == "poids_total_m2") %>%
   select(saison, date, annee, site, type, valeur) %>%
   group_by(saison, site, type) %>%
   summarize(valeur = mean(valeur)) %>%
@@ -132,25 +120,90 @@ macrodechets_spider <- macrodechets_general %>%
   summarize(valeur = mean(valeur)) %>%
   pivot_wider(names_from = type, values_from = valeur)
 
-macrodechets_spider <- macrodechets_spider %>%
+macrodechets_spider_general <- macrodechets_spider_general %>%
   ungroup() %>%
-  mutate(across(c("poids_total_100m", "volume_total_100m"), \(x) log(1 + x))) %>%
-  mutate(across(c("poids_total_100m", "volume_total_100m"), ~ scales::rescale(., to = c(0.2, 1)))) %>%
+  mutate(across(c("poids_total_m2"), \(x) log(1 + x))) %>% # Log transfo for lesser visual effect
+  mutate(across(c("poids_total_m2"), ~ scales::rescale(., to = c(0.2, 1)))) %>%
   # mutate(across(starts_with("global"), \(x) ifelse(x != 0, x / 100, x))) %>%
   pivot_longer(-site) %>%
   mutate(categorie = case_when(
-    name %in% c("volume_total_100m", "poids_total_100m") ~ "macrodechets - total",
-    TRUE ~ "macrodechets - composition globale"
+    name %in% c("poids_total_m2") ~ "Macrodéchets - Total",
+    TRUE ~ "Macrodéchets - composition globale"
   ))
+
+macrodechets_spider_secteur <- macrodechets_nb %>%
+  filter(site %in% sites_macrodechets) %>%
+  filter(categorie_sub == "secteur") %>%
+  filter(categorie_specifique %in% c(
+    "Alimentation",
+    "Cosmetiques_hygiene_et_soins_personnels",
+    "Batiment_travaux_et_materiaux_de_construction",
+    "Tabac",
+    "Chasse_et_armement",
+    "Peche"
+  )) %>%
+  select(saison, date, annee, site, categorie_specifique, valeur_m2) %>%
+  group_by(saison, site, categorie_specifique) %>%
+  summarize(valeur_m2 = mean(valeur_m2)) %>%
+  group_by(site, categorie_specifique) %>%
+  summarize(valeur_m2 = mean(valeur_m2)) %>%
+  pivot_wider(names_from = categorie_specifique, values_from = valeur_m2)
+
+macrodechets_spider_secteur <- macrodechets_spider_secteur %>%
+  ungroup() %>%
+  # mutate(across(-site, \(x) log(1 + x))) %>%
+  # mutate(across(-site, ~ scales::rescale(., to = c(0.2, 1)))) %>%
+  pivot_longer(-site) %>%
+  mutate(categorie = "Macrodéchets - Secteurs majoritaires") %>%
+  # transfo log(alpha * value + 1) with alpha increasing effect of log :
+  mutate(value = scales::rescale(log(value * 200 + 1), to = c(0.2, 1)))
 
 ## All ----
 all_spider <- rbind(typologie_spider, microplastiques_spider) %>%
-  complete(site, name, fill = list(value = NA, categorie = "micromesoplastiques")) %>%
-  rbind(., macrodechets_spider) %>%
+  complete(site, name, fill = list(value = NA, categorie = "Microplastiques et Mésoplastiques")) %>%
+  rbind(., macrodechets_spider_general) %>%
   arrange(site, categorie) %>%
   filter(site %in% all_sites) %>%
   # Attention si autre paramètre macrodechet
-  complete(site, name, fill = list(value = NA, categorie = "macrodechets - total"))
+  complete(site, name, fill = list(value = NA, categorie = "Macrodéchets - Total")) %>%
+  rbind(., macrodechets_spider_secteur) %>%
+  arrange(site, categorie) %>%
+  filter(site %in% all_sites) %>%
+  # Attention si autre paramètre macrodechet
+  complete(site, name, fill = list(value = NA, categorie = "Macrodéchets - Secteurs majoritaires"))
+
+
+all_spider <- all_spider %>%
+  mutate(name = case_when(
+    name == "acces_vehicule" ~ "Accès aux véhicules",
+    name == "ppuu_distribution" ~ "Distribution de PPUU",
+    name == "mesoplastiques" ~ "Mésoplastiques",
+    name == "microplastiques" ~ "Microplastiques",
+    name == "poids_total_m2" ~ "Poids total macrodéchets",
+    name == "port_proximité" ~ "Proximité port",
+    name == "riviere_proximité" ~ "Proximité rivière",
+    name == "ville_proximité" ~ "Proximité ville",
+    name == "ville_habitants" ~ "Habitants ville",
+    name == "step_proximité" ~ "Proximité STEP",
+    name == "Cosmetiques_hygiene_et_soins_personnels" ~ "Cosmétique et Hygiène",
+    name == "Batiment_travaux_et_materiaux_de_construction" ~ "Bâtiment, travaux et construction",
+    name == "Chasse_et_armement" ~ "Chasse et armement",
+    name == "Peche" ~ "Pêche",
+    TRUE ~ name
+  )) %>%
+  arrange(site, categorie, name) %>%
+  mutate(
+    categorie = factor(categorie, levels = c(
+      "Macrodéchets - Total",
+      "Macrodéchets - Secteurs majoritaires",
+      "Microplastiques et Mésoplastiques",
+      "Perturbations - intraplage",
+      "Perturbations - extraplage"
+    )),
+    name = factor(name, levels = unique(name))
+  )
+
+levels(all_spider$categorie)
 
 
 # Clustering on all selected data ----
@@ -189,9 +242,7 @@ hc <- hclust(distance_matrix, method = "ward.D2")
 
 ### ggdendro test ----
 ggdendrogram(hc) +
-  geom_hline(yintercept = 2, color = "red") +
-  scale_y_reverse() +
-  coord_polar()
+  geom_hline(yintercept = 1.8, color = "red")
 
 ### dendextend test ----
 dendro <- as.dendrogram(hc) %>%
@@ -199,7 +250,7 @@ dendro <- as.dendrogram(hc) %>%
 plot(dendro)
 
 ### ggdendro extraction + ggplot ----
-k <- 3 # clusters
+k <- 4 # clusters
 dd <- ggdendro::dendro_data(hc, type = "rectangle")
 seg <- dd$segments
 lab <- dd$labels # x, y, label
@@ -210,7 +261,9 @@ cl_df <- tibble(label = names(cl), cluster = as.integer(cl))
 lab <- lab %>% left_join(cl_df, by = "label")
 
 # palette
-pal <- paletteer::paletteer_d("nbapalettes::warriors_city")
+# pal <- paletteer::paletteer_d("nbapalettes::warriors_city") # 3 clusters
+# pal <- paletteer::paletteer_d("NineteenEightyR::sunset1") # For 5 clusters
+pal <- paletteer::paletteer_d("trekcolors::enara2") # For 4 clusters
 names(pal) <- as.character(1:k)
 
 # Increase angular spacing
@@ -280,7 +333,7 @@ gdend <- ggplot() +
       hjust = hjust,
       colour = factor(cluster)
     ),
-    size = 6,
+    size = 11,
     fontface = "bold"
   ) +
   scale_colour_manual(values = pal) +
@@ -322,16 +375,17 @@ for (site_plot in unique(all_spider$site)) {
   gspider <- spider_site %>%
     ggplot(., aes(x = name, y = value, fill = categorie)) +
     geom_col(position = "dodge2", color = "black") +
-    geom_point() +
+    geom_point(size = 4) +
     geom_text(
       aes(
         x = name,
-        y = ifelse(value > 0.2, value + 0.05, 0.2),
+        y = ifelse(value > 0.9, 0.3, ifelse(value > 0.2, value + 0.05, 0.3)),
         label = name,
         hjust = hjust,
         angle = angle
       ),
-      color = "black"
+      color = "black",
+      size = 9
     ) +
     coord_polar(start = 0) +
     theme_pubclean() +
@@ -339,7 +393,7 @@ for (site_plot in unique(all_spider$site)) {
     ylim(0, 1.2) +
     # paletteer::scale_fill_paletteer_d("MetBrewer::Tiepolo") +
     # paletteer::scale_fill_paletteer_d("nationalparkcolors::GeneralGrant", direction = 1) +
-    paletteer::scale_fill_paletteer_d("IslamicArt::cordoba") +
+    paletteer::scale_fill_paletteer_d("IslamicArt::cordoba", direction = 1) +
     theme(
       legend.position = "none",
       # Set default color and font family for the text
@@ -359,6 +413,17 @@ for (site_plot in unique(all_spider$site)) {
       panel.grid = element_blank(),
       panel.grid.major.x = element_blank()
     )
+
+  ggsave(
+    plot = gspider,
+    width = 3000,
+    height = 3000,
+    scale = 2,
+    filename = paste0(paths$output_spider, site_plot, ".jpg"),
+    units = "px",
+    dpi = "print",
+    limitsize = FALSE
+  )
   list_spiders <- c(list_spiders, gspider)
 }
 
@@ -374,7 +439,7 @@ ggsave(
   plot = gg_all,
   width = 3200,
   height = 3000,
-  scale = 2.75,
+  scale = 5,
   filename = paste0(paths$output_spider, "all_sites.jpg"),
   units = "px",
   dpi = "print",

@@ -54,10 +54,10 @@ dechets_cat <- function(
   if (sum_by_cat) {
     macrodechets_selected <- macrodechets_selected %>%
       group_by(categorie_specifique) %>%
-      summarize(total_100m = sum(valeur_100m, na.rm = TRUE)) %>%
-      mutate(total_100m = round(total_100m, 2)) %>%
-      arrange(desc(total_100m)) %>%
-      filter(total_100m > 0) %>%
+      summarize(total_m2 = sum(valeur_m2, na.rm = TRUE)) %>%
+      # mutate(total_m2 = round(total_m2, 2)) %>%
+      arrange(desc(total_m2)) %>%
+      filter(total_m2 > 0) %>%
       mutate(level = row_number()) %>%
       arrange(level) %>%
       mutate(print_name = paste(level, ":", str_replace_all(categorie_specifique, "_", " "))) %>%
@@ -69,9 +69,9 @@ dechets_cat <- function(
         )
       )
 
-    total_selected <- sum(macrodechets_selected$total_100m)
+    total_selected <- sum(macrodechets_selected$total_m2)
     macrodechets_selected <- macrodechets_selected %>%
-      dplyr::mutate(freq = total_100m / total_selected)
+      dplyr::mutate(freq = total_m2 / total_selected)
   } else { # Condition of keeping observations per date
     macrodechets_selected <- macrodechets_selected %>%
       mutate(categorie_specifique = paste(str_replace_all(categorie_specifique, "_", " ")))
