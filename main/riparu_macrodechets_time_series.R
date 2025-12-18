@@ -33,6 +33,7 @@ library("stringr")
 # Plotting
 library("ggplot2")
 library("ggpubr")
+library("ggtext")
 
 ## Source paths ----
 source("R/paths.R")
@@ -257,7 +258,7 @@ macrodechets_std <- dechets_cat(
 
 palette_std <- paletteer::paletteer_d("Polychrome::dark")
 
-## Macrodechets secteurs count ----
+## Macrodechets standard count ----
 dechets_timeseries(
   dechets_data = macrodechets_std,
   subcat = "standard",
@@ -278,7 +279,7 @@ dechets_timeseries(
   palette_selected = palette_std
 )
 
-## Macrodechets secteurs count with smooth ----
+## Macrodechets standard count with smooth ----
 
 # Looping on a series of different spans for visual choices
 for (spanwant in seq(from = 0.4, to = 0.9, by = 0.1)) {
