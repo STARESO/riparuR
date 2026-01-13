@@ -19,7 +19,7 @@ dechets_cat <- function(
   categorie_sub_sel, # selected sub category (ex : REP, Marque, ...)
   sites_selected = NULL, # In case of specific list of sites
   categorie_spe_sel = NULL, # selection of specific categories
-  sum_by_cat = TRUE # For summarizing data per
+  sum_by_cat = TRUE # For summarizing data per category
 ) {
   # Conditional checks
   if (is.null(sites_selected)) {

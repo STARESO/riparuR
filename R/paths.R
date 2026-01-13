@@ -42,6 +42,7 @@ with(paths_env, {
   output_timeseries <- "output/timeseries/"
   output_mostcommon <- "output/mostcommon/"
   output_spider <- "output/spiderplot/"
+  output_macrobysite <- "output/macrobysite/"
 })
 
 # Create folders if missing ----
